@@ -1,5 +1,7 @@
-# Import data
+# Import and Set Up Data ####
 library(readr)
+library(tidyverse)
+
 weather <- read_csv("data/weather.csv")
 save.image('rda/datasets.rda')
 comment(weather)<-c('Date-The date of observation',
@@ -26,3 +28,34 @@ comment(weather)<-c('Date-The date of observation',
                     'RainToday-Boolean: 1 if precipitation (mm) in the 24 hours to 9am exceeds 1mm, otherwise 0',
                     'RISK_MM-The amount of rain. A kind of measure of the \"risk\"',
                     'RainTomorrow-The target variable. Did it rain tomorrow?')
+
+weather$Date<-as.Date(weather$Date,'%d/%m/%Y') # fix date
+weather$Location<-as.factor(weather$Location)
+knitr::kable(table(weather$Location, useNA = 'ifany'))
+table(is.na(weather$Date))
+varName<-names(weather)[3:24]
+
+percentNotMissing<-weather%>%mutate_at(vars(varName),funs(ifelse(is.na(.),0,1)))
+percentNotMissing_sum<-percentNotMissing%>%group_by(Location)%>%summarise_at(vars(varName),funs(sum(.)*100/n()))
+str(percentNotMissing)
+
+selectLocation<-percentNotMissing_sum%>%filter_at(vars(varName),all_vars(.>90))
+
+
+test<-percentNotMissing[,3:24]
+xtabs(MinTemp=~.,data =percentNotMissing[,3:24]) 
+
+all(tab=test)
+
+summary(weather)
+#  Lots of NAs all over the place
+
+knitr::kable(table(weather[is.na(weather$RainToday),"Location"]))
+xtabs()
+row
+
+load('rda/datasets.rda')
+comment(weather)[18]
+grep('Cloud3',comment(weather))
+str(weather)
+tail(weather$Date,15)
