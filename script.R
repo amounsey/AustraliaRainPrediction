@@ -1,9 +1,7 @@
 # Import and Set Up Data ####
 library(readr)
-library(tidyverse)
-
 weather <- read_csv("data/weather.csv")
-save.image('rda/datasets.rda')
+
 comment(weather)<-c('Date-The date of observation',
                     'Location-The common name of the location of the weather station',
                     'MinTemp-The minimum temperature in degrees celsius',
@@ -29,8 +27,20 @@ comment(weather)<-c('Date-The date of observation',
                     'RISK_MM-The amount of rain. A kind of measure of the \"risk\"',
                     'RainTomorrow-The target variable. Did it rain tomorrow?')
 
+labelFinder<-function(x,df=weather){
+  comment(df)[grep(deparse(substitute(x)),comment(df))]
+}
+
+library(tidyverse)
+
 weather$Date<-as.Date(weather$Date,'%d/%m/%Y') # fix date
 weather$Location<-as.factor(weather$Location)
+summary(weather)
+labelFinder(Sun)
+labelFinder(Evap)
+# Sunshine & Evaporation should be numeric
+#class(weather)
+weather<-weather%>%mutate_at(vars(Evaporation:Sunshine),funs(as.numeric(.)))
 knitr::kable(table(weather$Location, useNA = 'ifany'))
 table(is.na(weather$Date))
 varName<-names(weather)[3:24]
@@ -38,11 +48,39 @@ varName<-names(weather)[3:24]
 percentNotMissing<-weather%>%mutate_at(vars(varName),funs(ifelse(is.na(.),0,1)))
 percentNotMissing_sum<-percentNotMissing%>%group_by(Location)%>%summarise_at(vars(varName),funs(sum(.)*100/n()))
 str(percentNotMissing)
+#varName[-c(4,5)]
+selectLocation_dataSummary<-percentNotMissing_sum%>%filter_at(vars(varName[-c(4,5)]),all_vars(.>75))
+selectLocation<-selectLocation_dataSummary%>%.$Location
+# as.character(selectLocation)
+# levels(selectLocation)
 
-selectLocation<-percentNotMissing_sum%>%filter_at(vars(varName),all_vars(.>90))
 
 
-test<-percentNotMissing[,3:24]
+load('rda/datasets.rda')
+weatherSelect<-weather%>%filter(Location%in%as.character(selectLocation))
+weatherSelect%>%select(Evaporation,Sunshine)%>%funs(cor(.,use = "complete.obs"))%>%.$ cor: cor(., use = "complete.obs")
+comment(weatherSelect) # comment carries over
+cor(weatherSelect$Sunshine,weatherSelect$Evaporation,use =  "pairwise.complete.obs") # >[1] 0.3738033 
+
+weatherSelect1<-as.data.frame(weatherSelect)%>%rowwise()%>%do(val=c(.$MinTemp,.$MaxTemp,.$Rainfall,.$Evaporation,
+                                                                    .$Sunshine,.$WindGustDir,.$WindGustSpeed,.$WindDir9am,
+                                                                    .$WindDir3pm,.$WindSpeed9am,.$WindSpeed3pm,.$Humidity9am,
+                                                                    .$Humidity3pm,.$Pressure9am,.$Pressure3pm,.$Cloud9am,
+                                                                    .$Cloud3pm,.$Temp9am,.$Temp3pm,.$RainToday,.$RISK_MM,.$RainTomorrow))
+weatherSelect2<-weatherSelect1%>%summarise(NoNA=ifelse(sum(!is.na(val))==22,1,0))
+sum(weatherSelect2$NoNA)
+#weatherSelect1<-as.data.frame(weatherSelect)%>%rowwise()%>%do(val=print(noquote(paste0('.$',varName))))
+print(noquote(paste0('.$',varName)))
+parse(varName)
+rowwise()
+
+
+labelFinder(Location)
+
+as.character(substitute(e))
+as.character(enquote(e))[-1]
+
+as.character(expression(test))
 xtabs(MinTemp=~.,data =percentNotMissing[,3:24]) 
 
 all(tab=test)
@@ -54,8 +92,10 @@ knitr::kable(table(weather[is.na(weather$RainToday),"Location"]))
 xtabs()
 row
 
-load('rda/datasets.rda')
+
 comment(weather)[18]
 grep('Cloud3',comment(weather))
 str(weather)
 tail(weather$Date,15)
+
+save.image('rda/datasets.rda')
