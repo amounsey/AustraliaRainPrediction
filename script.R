@@ -31,7 +31,9 @@ labelFinder<-function(x,df=weather){
   comment(df)[grep(deparse(substitute(x)),comment(df))]
 }
 
+
 library(tidyverse)
+library(summarytools)
 
 weather$Date<-as.Date(weather$Date,'%d/%m/%Y') # fix date
 weather$Location<-as.factor(weather$Location)
@@ -58,8 +60,7 @@ selectLocation<-selectLocation_dataSummary%>%.$Location
 
 load('rda/datasets.rda')
 weatherSelect<-weather%>%filter(Location%in%as.character(selectLocation))
-weatherSelect%>%select(Evaporation,Sunshine)%>%funs(cor(.,use = "complete.obs"))%>%.$ cor: cor(., use = "complete.obs")
-comment(weatherSelect) # comment carries over
+# comment(weatherSelect) # comment carries over
 cor(weatherSelect$Sunshine,weatherSelect$Evaporation,use =  "pairwise.complete.obs") # >[1] 0.3738033 
 
 weatherSelect1<-as.data.frame(weatherSelect)%>%rowwise()%>%do(val=c(.$MinTemp,.$MaxTemp,.$Rainfall,.$Evaporation,
@@ -67,9 +68,27 @@ weatherSelect1<-as.data.frame(weatherSelect)%>%rowwise()%>%do(val=c(.$MinTemp,.$
                                                                     .$WindDir3pm,.$WindSpeed9am,.$WindSpeed3pm,.$Humidity9am,
                                                                     .$Humidity3pm,.$Pressure9am,.$Pressure3pm,.$Cloud9am,
                                                                     .$Cloud3pm,.$Temp9am,.$Temp3pm,.$RainToday,.$RISK_MM,.$RainTomorrow))
-weatherSelect2<-weatherSelect1%>%summarise(NoNA=ifelse(sum(!is.na(val))==22,1,0))
+
+weatherSelect2<-weatherSelect1%>%summarise(NoNA=ifelse(sum(!is.na(val))==22,1,0),Missing=sum(is.na(val)))
+
+weatherSelect<-cbind(weatherSelect,weatherSelect2)
+
+knitr::kable(table(weatherSelect[weatherSelect$Missing==1,"Location"]))
+knitr::kable(rel.freq(weatherSelect[weatherSelect$Missing==1,"Location"]))
+knitr::kable(freq(
+  weatherSelect[weatherSelect$Missing==1&
+                  (is.na(weatherSelect$WindDir9am)&weatherSelect$WindSpeed9am==0|is.na(weatherSelect$WindDir3pm)&weatherSelect$WindSpeed3pm==0),
+                "Location"]))
+weatherSelect_WindDir_issu<-weatherSelect[weatherSelect$Missing==1&
+                (is.na(weatherSelect$WindDir9am)&weatherSelect$WindSpeed9am==0|is.na(weatherSelect$WindDir3pm)&weatherSelect$WindSpeed3pm==0),]
+
+knitr::kable(freq(weatherSelect_WindDir_issu$Location))
+# WindDir can be NA if windspeed is 0. 
+# There are about 1370 cases where there is only 1 missing & WindDir is the only missing in weatherSelect
+
 sum(weatherSelect2$NoNA)
-#weatherSelect1<-as.data.frame(weatherSelect)%>%rowwise()%>%do(val=print(noquote(paste0('.$',varName))))
+
+#weatherSelect1a<-as.data.frame(weatherSelect)%>%rowwise()%>%do(val=c(paste0('.$',varName)))
 print(noquote(paste0('.$',varName)))
 parse(varName)
 rowwise()
