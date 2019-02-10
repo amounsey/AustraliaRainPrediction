@@ -1,7 +1,5 @@
-# Import and Set Up Data ####
-library(readr)
-weather <- read_csv("data/weather.csv")
-
+# Import Data ####
+weather <- readr::read_csv("data/weather.csv")
 comment(weather)<-c('Date-The date of observation',
                     'Location-The common name of the location of the weather station',
                     'MinTemp-The minimum temperature in degrees celsius',
@@ -27,17 +25,23 @@ comment(weather)<-c('Date-The date of observation',
                     'RISK_MM-The amount of rain. A kind of measure of the \"risk\"',
                     'RainTomorrow-The target variable. Did it rain tomorrow?')
 
+save.image('rda/datasets.rda')
+
+# Required Libraries & Dataset ####
+library(tidyverse)
+library(summarytools)
+load('rda/datasets.rda')
+
+# Required Formulae ####
 labelFinder<-function(x,df=weather){
   comment(df)[grep(deparse(substitute(x)),comment(df))]
 }
 
-
-library(tidyverse)
-library(summarytools)
-
+# Data Cleaning ####
 weather$Date<-as.Date(weather$Date,'%d/%m/%Y') # fix date
 weather$Location<-as.factor(weather$Location)
 summary(weather)
+# class(weather$Location)
 labelFinder(Sun)
 labelFinder(Evap)
 # Sunshine & Evaporation should be numeric
@@ -45,76 +49,39 @@ labelFinder(Evap)
 weather<-weather%>%mutate_at(vars(Evaporation:Sunshine),funs(as.numeric(.)))
 knitr::kable(table(weather$Location, useNA = 'ifany'))
 table(is.na(weather$Date))
-varName<-names(weather)[3:24]
-
-percentNotMissing<-weather%>%mutate_at(vars(varName),funs(ifelse(is.na(.),0,1)))
-percentNotMissing_sum<-percentNotMissing%>%group_by(Location)%>%summarise_at(vars(varName),funs(sum(.)*100/n()))
-str(percentNotMissing)
-#varName[-c(4,5)]
-selectLocation_dataSummary<-percentNotMissing_sum%>%filter_at(vars(varName[-c(4,5)]),all_vars(.>75))
-selectLocation<-selectLocation_dataSummary%>%.$Location
-# as.character(selectLocation)
-# levels(selectLocation)
-
-
-
-load('rda/datasets.rda')
-weatherSelect<-weather%>%filter(Location%in%as.character(selectLocation))
-# comment(weatherSelect) # comment carries over
-cor(weatherSelect$Sunshine,weatherSelect$Evaporation,use =  "pairwise.complete.obs") # >[1] 0.3738033 
-
-weatherSelect1<-as.data.frame(weatherSelect)%>%rowwise()%>%do(val=c(.$MinTemp,.$MaxTemp,.$Rainfall,.$Evaporation,
-                                                                    .$Sunshine,.$WindGustDir,.$WindGustSpeed,.$WindDir9am,
-                                                                    .$WindDir3pm,.$WindSpeed9am,.$WindSpeed3pm,.$Humidity9am,
-                                                                    .$Humidity3pm,.$Pressure9am,.$Pressure3pm,.$Cloud9am,
-                                                                    .$Cloud3pm,.$Temp9am,.$Temp3pm,.$RainToday,.$RISK_MM,.$RainTomorrow))
-
-weatherSelect2<-weatherSelect1%>%summarise(NoNA=ifelse(sum(!is.na(val))==22,1,0),Missing=sum(is.na(val)))
-
-weatherSelect<-cbind(weatherSelect,weatherSelect2)
-
-knitr::kable(table(weatherSelect[weatherSelect$Missing==1,"Location"]))
-knitr::kable(rel.freq(weatherSelect[weatherSelect$Missing==1,"Location"]))
-knitr::kable(freq(
-  weatherSelect[weatherSelect$Missing==1&
-                  (is.na(weatherSelect$WindDir9am)&weatherSelect$WindSpeed9am==0|is.na(weatherSelect$WindDir3pm)&weatherSelect$WindSpeed3pm==0),
-                "Location"]))
-weatherSelect_WindDir_issu<-weatherSelect[weatherSelect$Missing==1&
-                (is.na(weatherSelect$WindDir9am)&weatherSelect$WindSpeed9am==0|is.na(weatherSelect$WindDir3pm)&weatherSelect$WindSpeed3pm==0),]
-
-knitr::kable(freq(weatherSelect_WindDir_issu$Location))
-# WindDir can be NA if windspeed is 0. 
-# There are about 1370 cases where there is only 1 missing & WindDir is the only missing in weatherSelect
-
-sum(weatherSelect2$NoNA)
-
-#weatherSelect1a<-as.data.frame(weatherSelect)%>%rowwise()%>%do(val=c(paste0('.$',varName)))
-print(noquote(paste0('.$',varName)))
-parse(varName)
-rowwise()
-
-
-labelFinder(Location)
-
-as.character(substitute(e))
-as.character(enquote(e))[-1]
-
-as.character(expression(test))
-xtabs(MinTemp=~.,data =percentNotMissing[,3:24]) 
-
-all(tab=test)
 
 summary(weather)
 #  Lots of NAs all over the place
+cor(weatherSelect$Sunshine,weatherSelect$Evaporation,use =  "pairwise.complete.obs") # >[1] 0.3738033 
 
-knitr::kable(table(weather[is.na(weather$RainToday),"Location"]))
-xtabs()
-row
+weather_WindDir_issu<-weather%>%filter((is.na(WindDir9am)&WindSpeed9am==0)|(is.na(WindDir3pm)&WindSpeed3pm==0))
 
+knitr::kable(freq(weather_WindDir_issu$Location))
+# WindDir can be NA if windspeed is 0 - WindDir issue. 
+# There are about 9247 such cases  in weather dataframe
+# Fixing this WindDir issue
 
-comment(weather)[18]
-grep('Cloud3',comment(weather))
-str(weather)
-tail(weather$Date,15)
+weather<-as_tibble(rownames_to_column(weather,'Index')) # to row numbers to use later
+
+WindDir9amIssue_index<-weather%>%filter(is.na(WindDir9am)&WindSpeed9am==0)%>%.$Index
+WindDir9amIssue_index<-as.numeric(WindDir9amIssue_index)
+
+WindDir3pmIssue_index<-weather%>%filter(is.na(WindDir3pm)&WindSpeed3pm==0)%>%.$Index
+WindDir3pmIssue_index<-as.numeric(WindDir3pmIssue_index)
+
+weather[WindDir9amIssue_index,"WindDir9am"]<-'NoDir' #WindDir9am issue fixed 
+weather[WindDir3pmIssue_index,"WindDir3pm"]<-'NoDir' #WindDir3pm issue fixed
+
+weather<-weather%>%select(-Index,-RISK_MM) #droping Index and droping Risk_MM as Advised (see README)
+
+# Droping all cases(rows) containing NA values
+
+weather<-weather%>%drop_na()
+as.character(unique(weather$Location)) #  there are now only 26 unique Locations as opposed to 49 before
+weather$Location<-as.character(weather$Location) #  to remove orginal factor levels  
+weather$Location<-as.factor(weather$Location) # to Generate new factor levels
+levels(weather$Location) #  confirmation check
+  
+summary(weather)
 
 save.image('rda/datasets.rda')
