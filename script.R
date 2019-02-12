@@ -33,20 +33,29 @@ library(summarytools)
 library(caret)
 load('rda/datasets.rda')
 
-# Required Formulae ####
+# Required Functions ####
 labelFinder<-function(x,df=weather){
   comment(df)[grep(deparse(substitute(x)),comment(df))]
-}
+} # Search Comment Associated with dataframe for specific variable name (or part of variable name) 
+
+numx<-function(df,x){
+  x1<-as.matrix(df[,x])
+  is.numeric(x1)
+} # Simply indicates if x is a numeric column in the df dataframe (needed for function below)
+num_col<-function(df,vars){
+  sapply(vars,numx,df=df)
+} # Produces a logical vector indicating weather the variable names listed in vars are numeric, 
+  # where df is the dataframe containinig these variables
 
 # Data Cleaning ####
 weather$Date<-as.Date(weather$Date,'%d/%m/%Y') # fix date
 weather$Location<-as.factor(weather$Location)
 summary(weather)
 # class(weather$Location)
-labelFinder(Sun)
-labelFinder(Evap)
+# labelFinder(Sun)
+# labelFinder(Evap)
 # Sunshine & Evaporation should be numeric
-#class(weather)
+# class(weather)
 weather<-weather%>%mutate_at(vars(Evaporation:Sunshine),funs(as.numeric(.)))
 knitr::kable(table(weather$Location, useNA = 'ifany'))
 table(is.na(weather$Date))
@@ -82,9 +91,15 @@ weather<-weather%>%mutate(RainTomorrow=as.factor(RainTomorrow),
                           RainToday=as.factor(RainToday),WindGustDir=as.factor(WindGustDir),
                           WindDir9am=as.factor(WindDir9am),WindDir3pm=as.factor(WindDir3pm)) # convert chr variables into factors
 
+# set.seed(34)
+# sample(weather$RainTomorrow,30,replace = F)
+
+weather$RainTomorrow<-ifelse(weather$RainTomorrow=='No',0,1) #  code Label 0-No and 1-Yes
+
 knitr::kable(freq(weather$RainTomorrow)) #  check how much imbalance in the values of the label
 #knitr::kable(freq(weather$RainToday))
-as.character(unique(weather$Location)) #  there are now only 26 unique Locations as opposed to 49 before
+unique(weather$Location) #  there are now only 26 unique Locations as opposed to 49 before
+levels(weather$Location) #  Highlights the same problem
 weather$Location<-as.character(weather$Location) #  to remove orginal factor levels  
 weather$Location<-as.factor(weather$Location) # to Generate new factor levels
 levels(weather$Location) #  confirmation check
@@ -98,8 +113,19 @@ trainIndex<-createDataPartition(y=weather$RainTomorrow,p=0.8,list = F)
 trainSet<-weather[trainIndex,] #  Training dataset created
 testSet<-weather[-trainIndex,] #  Testing dataset created
 
-unique(trainSet$Location) # Confirming thatlevels of Location are captured in the trainSet
+unique(trainSet$Location) # Confirming that all levels of Location are captured in the trainSet
 
+# str_train<-str(trainSet)
+varNames<-names(trainSet)
+# varNames
+numInd<-num_col(testSet,varNames[-23]) #  logical vector indicating position of numeric and non-numeric variables (label excluded)
+numVars<-varNames[numInd] # extracting the names of numeric features 
+# numVars
+
+# Scaling numeric features
+preProcVals<-preProcess(trainSet[,numVars],method = c('center','scale'))
+trainSet[,numVars]=predict(preProcVals,trainSet[,numVars])
+testSet[,numVars]=predict(preProcVals,testSet[,numVars])
 
 class(trainSet$RainTomorrow)
 # Data Visualization  ####
