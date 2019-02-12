@@ -30,6 +30,7 @@ save.image('rda/datasets.rda')
 # Required Libraries & Dataset ####
 library(tidyverse)
 library(summarytools)
+library(caret)
 load('rda/datasets.rda')
 
 # Required Formulae ####
@@ -74,14 +75,34 @@ weather[WindDir3pmIssue_index,"WindDir3pm"]<-'NoDir' #WindDir3pm issue fixed
 
 weather<-weather%>%select(-Index,-RISK_MM) #droping Index and droping Risk_MM as Advised (see README)
 
-# Droping all cases(rows) containing NA values
+weather<-weather%>%drop_na() # Droping all cases(rows) containing NA values
+str(weather)
 
-weather<-weather%>%drop_na()
+weather<-weather%>%mutate(RainTomorrow=as.factor(RainTomorrow),
+                          RainToday=as.factor(RainToday),WindGustDir=as.factor(WindGustDir),
+                          WindDir9am=as.factor(WindDir9am),WindDir3pm=as.factor(WindDir3pm)) # convert chr variables into factors
+
+knitr::kable(freq(weather$RainTomorrow)) #  check how much imbalance in the values of the label
+#knitr::kable(freq(weather$RainToday))
 as.character(unique(weather$Location)) #  there are now only 26 unique Locations as opposed to 49 before
 weather$Location<-as.character(weather$Location) #  to remove orginal factor levels  
 weather$Location<-as.factor(weather$Location) # to Generate new factor levels
 levels(weather$Location) #  confirmation check
   
 summary(weather)
+knitr::kable(freq(weather$Location))
+
+# Creating Training and Test Datasets ####
+set.seed(286)
+trainIndex<-createDataPartition(y=weather$RainTomorrow,p=0.8,list = F)
+trainSet<-weather[trainIndex,] #  Training dataset created
+testSet<-weather[-trainIndex,] #  Testing dataset created
+
+unique(trainSet$Location) # Confirming thatlevels of Location are captured in the trainSet
+
+
+class(trainSet$RainTomorrow)
+# Data Visualization  ####
 
 save.image('rda/datasets.rda')
+
