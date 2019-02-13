@@ -2,31 +2,44 @@
 title: "Australia Next Day Rain Prediction"
 author: "Allister Mounsey"
 date: "11 February 2019"
-output: pdf_document
+output: bookdown::pdf_document2
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=FALSE,warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE,fig.width=7,fig.height=6)
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggalt))
+suppressMessages(library(caret))
+suppressMessages(library(png))
+suppressMessages(library(summarytools))
+
+load('rda/datasets.rda')
+gc() 
 ```
 
-<http://www.bom.gov.au/jsp/ncc/climate_averages/raindays/index.jsp>
+#Introduction
 
-## R Markdown
+#Methods and Analysis
+Figure \@ref(fig:map) shows
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r map,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:map}Rain Days across Australia \\ Source: <http://www.bom.gov.au/jsp/ncc/climate_averages/raindays/index.jsp>" }
+aussie_map<-readPNG('figs/rain1mman.png')
+grid::grid.raster(aussie_map)
 ```
 
-## Including Plots
+Figure \@ref(fig:seasonal) shows seasonal 
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r seasonal,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:seaonal}Monthly Rainfall Patterns by Location" }
+trainSet_dv%>%group_by(Location,Month)%>%
+  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(RainTomorrow))%>%
+  select(Location,Month,Daily_rainfall,Number_rain_days)%>%
+  ggplot(aes(x=Month,y=Number_rain_days,size=Daily_rainfall))+geom_point()+facet_wrap(~Location)+
+  labs(y='Mean Number of Rain Days',size='Mean Daily Rainfall in mm')+
+  theme_bw()+theme(axis.text.x = element_text(angle=90),legend.position = 'bottom')
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+#Results
+
+#Conclusion 
+
+

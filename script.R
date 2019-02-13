@@ -31,6 +31,8 @@ save.image('rda/datasets.rda')
 library(tidyverse)
 library(summarytools)
 library(caret)
+library(ggalt)
+library(ggrepel)
 load('rda/datasets.rda')
 
 # Required Functions ####
@@ -115,20 +117,45 @@ testSet<-weather[-trainIndex,] #  Testing dataset created
 
 unique(trainSet$Location) # Confirming that all levels of Location are captured in the trainSet
 
-# str_train<-str(trainSet)
+# Data Visualization  ####
+trainSet_dv<-trainSet # Create a training dataset for data visualisation the trainSet will be scaled and centered later
+trainSet_dv$Month<-months(trainSet_dv$Date, abbreviate = T) #  extract month to get season variation
+str(trainSet_dv$Month)
+month_order<-unique(trainSet_dv$Month)
+trainSet_dv$Month<-factor(trainSet_dv$Month, levels=month_order)
+# Examining rain by locations
+knitr::kable(trainSet_dv%>%group_by(Location)%>%
+               summarise(mean_rainfall=mean(Rainfall),oneRainDayinDays=1/mean(RainTomorrow))%>%
+               select(Location,mean_rainfall,oneRainDayinDays))
+
+trainSet_dv%>%group_by(Location)%>%
+  summarise(Annual_rainfall=365*mean(Rainfall),Number_rain_days=365*mean(RainTomorrow))%>%
+  select(Location,Annual_rainfall,Number_rain_days)%>%
+  ggplot(aes(x=Number_rain_days,y=Annual_rainfall,label=Location))+geom_point()+geom_text_repel()
+
+trainSet_dv%>%group_by(Location,Month)%>%
+  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(RainTomorrow))%>%
+  select(Location,Month,Daily_rainfall,Number_rain_days)%>%
+  ggplot(aes(x=Number_rain_days,y=Daily_rainfall,label=abbreviate(Location,2)))+geom_point()+geom_text_repel()+facet_wrap(~Month)
+
+trainSet_dv%>%group_by(Location,Month)%>%
+  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(RainTomorrow))%>%
+  select(Location,Month,Daily_rainfall,Number_rain_days)%>%
+  ggplot(aes(x=Month,y=Number_rain_days,size=Daily_rainfall))+geom_point()+facet_wrap(~Location)+
+  labs(y='Mean Number of Rain Days',size='Mean Daily\nRainfall in mm')+
+  theme_bw()+theme(axis.text.x = element_text(angle=90))
+
+# Scaling numeric features
 varNames<-names(trainSet)
 # varNames
 numInd<-num_col(testSet,varNames[-23]) #  logical vector indicating position of numeric and non-numeric variables (label excluded)
 numVars<-varNames[numInd] # extracting the names of numeric features 
 # numVars
-
-# Scaling numeric features
 preProcVals<-preProcess(trainSet[,numVars],method = c('center','scale'))
 trainSet[,numVars]=predict(preProcVals,trainSet[,numVars])
 testSet[,numVars]=predict(preProcVals,testSet[,numVars])
 
 class(trainSet$RainTomorrow)
-# Data Visualization  ####
 
 save.image('rda/datasets.rda')
 
