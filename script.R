@@ -139,11 +139,43 @@ trainSet_dv%>%group_by(Location,Month)%>%
   ggplot(aes(x=Number_rain_days,y=Daily_rainfall,label=abbreviate(Location,2)))+geom_point()+geom_text_repel()+facet_wrap(~Month)
 
 trainSet_dv%>%group_by(Location,Month)%>%
-  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(RainTomorrow))%>%
+  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(ifelse(RainToday=='No',0,1)))%>%
   select(Location,Month,Daily_rainfall,Number_rain_days)%>%
   ggplot(aes(x=Month,y=Number_rain_days,size=Daily_rainfall))+geom_point()+facet_wrap(~Location)+
   labs(y='Mean Number of Rain Days',size='Mean Daily\nRainfall in mm')+
-  theme_bw()+theme(axis.text.x = element_text(angle=90))
+  theme_bw()+theme(axis.text.x = element_text(angle=90),plot.margin = margin(2,2,2,2))
+
+summary(trainSet_dv)
+
+cor.test(ifelse(trainSet$RainToday=='No',0,1),trainSet$RainTomorrow)
+cor.test(trainSet$Humidity3pm,trainSet$RainTomorrow)
+
+trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Humidity3pm))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Cloud3pm))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Pressure3pm))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+# Not So Well Separated
+trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),WindSpeed3pm))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Temp3pm))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+check<-trainSet_dv%>%group_by(Location,Month)%>%
+  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(RainTomorrow))%>%
+  select(Location,Month,Daily_rainfall,Number_rain_days)%>%ungroup()%>%group_by(Location)
+
+# %>%
+#   summarise(Number_rain_days=which.max(Number_rain_days),Month=Month[which.max(Number_rain_days)])%>%
+#   ggplot(aes(x=Location,y=Number_rain_days,fill=Month))+geom_col()+
+#   theme_bw()+theme(axis.text.x = element_text(angle=90))
+
+which.max(check$Number_rain_days)
 
 # Scaling numeric features
 varNames<-names(trainSet)

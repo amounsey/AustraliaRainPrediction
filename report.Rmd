@@ -29,14 +29,29 @@ grid::grid.raster(aussie_map)
 
 Figure \@ref(fig:seasonal) shows seasonal 
 
-```{r seasonal,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:seaonal}Monthly Rainfall Patterns by Location" }
+```{r seasonal,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:seaonal}Monthly Rainfall Patterns by Location"}
 trainSet_dv%>%group_by(Location,Month)%>%
-  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(RainTomorrow))%>%
-  select(Location,Month,Daily_rainfall,Number_rain_days)%>%
+  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(ifelse(RainToday=='No',0,1)))%>%
+  select(Location,Month,Daily_rainfall,Number_rain_days)%>%filter(Location=='Darwin'|Location=='Portland')%>%
   ggplot(aes(x=Month,y=Number_rain_days,size=Daily_rainfall))+geom_point()+facet_wrap(~Location)+
   labs(y='Mean Number of Rain Days',size='Mean Daily Rainfall in mm')+
   theme_bw()+theme(axis.text.x = element_text(angle=90),legend.position = 'bottom')
 ```
+
+Separation. Figure \@ref(fig:wellsep) example
+
+```{r wellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:wellsep}Examples of Some Well Separated Cases"}
+g1<-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Humidity3pm))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+g2<-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Cloud3pm))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+gridExtra::grid.arrange(g1,g2, nrow=1)
+```
+
+Not well separated 
+
+
 
 #Results
 
