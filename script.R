@@ -160,15 +160,118 @@ trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Pressure3pm))+geom_b
   labs(x='RainTomorrow')+theme_bw()
 
 # Not So Well Separated
-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),WindSpeed3pm))+geom_boxplot()+
+trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),WindSpeed9am))+geom_boxplot()+
   labs(x='RainTomorrow')+theme_bw()
 
-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Temp3pm))+geom_boxplot()+
+trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Temp9am))+geom_boxplot()+
   labs(x='RainTomorrow')+theme_bw()
+
+numVars
+
+plot_box<-function(x){print(trainSet_dv%>%ggplot(aes(x=ifelse(RainTomorrow==0,'No','Yes')))+geom_boxplot(aes_string(y=x))+
+    labs(x='RainTomorrow')+theme_bw())}
+# plot_box('Sunshine')
+sapply(numVars,plot_box)
+
+ksWrapper<-function(x){
+z1<-as.matrix(trainSet[trainSet$RainTomorrow==0,x])
+z2<-as.matrix(trainSet[trainSet$RainTomorrow==1,x])
+D<-ks.test(z1,z2)[1]
+p_val<-ks.test(z1,z2)[2]
+return(c(x,D,p_val))
+}
+# Code Already in report- start
+ksWrapper("MinTemp")
+ksWrapper("MinTemp")$statistic
+x<-matrix(unlist(sapply(numVars,ksWrapper),use.names = F),ncol=3,byrow=T)
+x<-as.data.frame(x)[,-3]
+names(x)<-c('NumericVariable','D')
+x$D<-round(as.numeric(as.character(x$D)),digits = 2)
+knitr::kable(x)
+# Code Already in report- end
+st_options('round.digits', 1)
+knitr::kable(ctable(trainSet_dv$Location,trainSet_dv$WindDir9am),digits = 1)
+
+location<-levels(trainSet_dv$Location)
+for(l in location){
+  print(l)
+  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,trainSet_dv[trainSet_dv$Location==l,]$WindDir9am)[2])
+  print(knitr::kable(x,digits = 2))
+ cat("_________________________________________________\n")
+}
+
+for(l in location){
+  print(l)
+  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm)[2])
+  print(knitr::kable(x,digits = 2))
+  cat('\n')
+  print(knitr::kable(suppressMessages(freq(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow))))
+  cat("_________________________________________________\n")
+}
+
+for(l in location){
+  print(l)
+  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$Month,trainSet_dv[trainSet_dv$Location==l,]$WindDir9am)[2])
+  print(knitr::kable(x,digits = 2))
+  cat("_________________________________________________\n")
+}
+
+x1<-as.data.frame(x[1])
+x2<-t(x1)
+
+labelFinder(sunsh)
 
 check<-trainSet_dv%>%group_by(Location,Month)%>%
-  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(RainTomorrow))%>%
-  select(Location,Month,Daily_rainfall,Number_rain_days)%>%ungroup()%>%group_by(Location)
+  summarise(rainDays=30.5*mean(RainTomorrow),sd_rainDays=sd(RainTomorrow))%>%
+  mutate(label=paste(Location,Month, sep = '_'))%>%ungroup()%>%
+  select(label,rainDays,sd_rainDays)
+check<-as.data.frame(check)
+row.names(check)<-check$label
+check$label<-NULL
+check1<-check
+check<-scale(check)
+
+d<-dist(check)
+hc1<-hclust(d)
+plot(hc1)
+rect.hclust(hc1,k=4)
+library(cluster)
+library(factoextra)
+hc<-agnes(check)
+hc$ac
+pltree(hc, main='Dendrogram of Location_Month')
+fviz_nbclust(check,FUN=hcut,method = 'wss')
+fviz_nbclust(check,FUN=hcut,method = 'silhouette')
+gap_stat<-clusGap(check,FUN=hcut,nstart = 25, K.max=10, B=50)
+fviz_gap_stat(gap_stat)
+
+clust<-cutree(as.hclust(hc),k=4)
+check1$clust<-clust
+clustmat<-trainSet_dv%>%group_by(Location,Month)%>%
+  summarise(rainDays=30.5*mean(RainTomorrow),sd_rainDays=sd(RainTomorrow))%>%
+  mutate(label=paste(Location,Month, sep = '_'))%>%ungroup()%>%
+  select(Location,Month)%>%mutate(cluster=clust)
+
+spread_var<-c('Location','Month')
+clustmat%>%spread(key=Month,value=cluster)
+
+fviz_cluster(list(data=check,cluster=clust), geom = 'point',
+             xlab = 'Rain Days (Standardized)',ylab = 'Variability in Rain Days (Standardized)',
+             main = NULL,ggtheme = theme_bw())
+
+# useful lines of code adapted from <https://uc-r.github.io/hc_clustering> -Begin
+# methods to assess
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+
+# function to compute coefficient
+ac <- function(x) {
+  agnes(check, method = x)$ac
+}
+
+map_dbl(m, ac)
+# useful lines of code from <https://uc-r.github.io/hc_clustering> -End
+
 
 # %>%
 #   summarise(Number_rain_days=which.max(Number_rain_days),Month=Month[which.max(Number_rain_days)])%>%
@@ -177,6 +280,7 @@ check<-trainSet_dv%>%group_by(Location,Month)%>%
 
 which.max(check$Number_rain_days)
 
+# Machine Learning ####
 # Scaling numeric features
 varNames<-names(trainSet)
 # varNames
@@ -188,6 +292,20 @@ trainSet[,numVars]=predict(preProcVals,trainSet[,numVars])
 testSet[,numVars]=predict(preProcVals,testSet[,numVars])
 
 class(trainSet$RainTomorrow)
+cluster4joining<-clustmat%>%mutate(locMon=paste(Location,Month, sep = '_'))%>%select(locMon,cluster)
+
+trainSet_dv<-trainSet_dv%>%mutate(locMon=paste(Location,Month, sep = '_'))
+trainSet_dv<-trainSet_dv%>%left_join(cluster4joining)
+trainSet_dv$cluster<-as.factor(trainSet_dv$cluster)
+
+names(trainSet_dv)
+summary(trainSet_dv)
+#  Logistic Model
+set.seed(2179)
+logistic_mod<-glm(RainTomorrow~cluster+RainToday+MaxTemp+Rainfall+Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+
+                    Pressure9am+Pressure3pm+Cloud9am+Cloud3pm+Temp3pm, family = binomial,data = trainSet_dv)
+
+summary(logistic_mod)
 
 save.image('rda/datasets.rda')
 
