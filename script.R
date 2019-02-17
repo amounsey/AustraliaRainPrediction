@@ -193,31 +193,65 @@ st_options('round.digits', 1)
 knitr::kable(ctable(trainSet_dv$Location,trainSet_dv$WindDir9am),digits = 1)
 
 location<-levels(trainSet_dv$Location)
+
+# To see conditional probabilites P(Dir/No_RainTomorrow) and P(Dir/Yes_RainTomorrow) for each local
+# substitute $WindDir3pm for $WindDir9am if you want to see these conditional probabilities with the 9am wind direction.
 for(l in location){
   print(l)
-  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,trainSet_dv[trainSet_dv$Location==l,]$WindDir9am)[2])
+  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
+                             trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm)[2]) # the Crosstab as proportions the 2nd table in the list 
   print(knitr::kable(x,digits = 2))
- cat("_________________________________________________\n")
+    cat("_________________________________________________\n")
+} 
+
+rainDir9am<-list()
+for(l in location){
+  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
+                             trainSet_dv[trainSet_dv$Location==l,]$WindDir9am)[2])
+  x<-as.data.frame(x)
+  x<-as.data.frame(t(x))
+  x$dir<-row.names(x)
+  dir<-strsplit(x$dir,'[.]')
+  dir<-as.data.frame(dir)
+  x$dir<-t(dir)[,2]
+  x<-x[row.names(x)!='proportions.Total',]
+  x$rainDir<-ifelse(x$Yes>=x$Total,1,0) # indicate directions the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
+  rainDir9am[[l]]<-x[x$rainDir==1,"dir"] # returns these directions to character vector bearing the location name in the rainDir9am list
 }
 
+rainDir3pm<-list()
 for(l in location){
-  print(l)
-  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm)[2])
-  print(knitr::kable(x,digits = 2))
-  cat('\n')
-  print(knitr::kable(suppressMessages(freq(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow))))
-  cat("_________________________________________________\n")
+  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
+                             trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm)[2])
+  x<-as.data.frame(x)
+  x<-as.data.frame(t(x))
+  x$dir<-row.names(x)
+  dir<-strsplit(x$dir,'[.]')
+  dir<-as.data.frame(dir)
+  x$dir<-t(dir)[,2]
+  x<-x[row.names(x)!='proportions.Total',]
+  x$rainDir<-ifelse(x$Yes>=x$Total,1,0) # indicate directions the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
+  rainDir3pm[[l]]<-x[x$rainDir==1,"dir"] # returns these directions to character vector bearing the location name in the rainDir3pm list
 }
 
-for(l in location){
-  print(l)
-  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$Month,trainSet_dv[trainSet_dv$Location==l,]$WindDir9am)[2])
-  print(knitr::kable(x,digits = 2))
-  cat("_________________________________________________\n")
-}
+
+
+
 
 x1<-as.data.frame(x[1])
-x2<-t(x1)
+x2<-as.data.frame(t(x1))
+x2$dir<-row.names(x2)
+dir<-strsplit(x2$dir,'[.]')
+dir<-as.data.frame(dir)
+x2$dir<-t(dir)[,2]
+x2<-x2[row.names(x2)!='proportions.Total',]
+x2$rainDir<-ifelse(x2$Yes>=x2$Total,1,0)
+rainDir<-x2[x2$rainDir==1,"dir"]
+
+
+# x <- c(as = "asfef", qu = "qwerty", "yuiop[", "b", "stuff.blah.yech")
+# split x on the letter e
+# xtest<-strsplit(x, "e")
 
 labelFinder(sunsh)
 

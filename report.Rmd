@@ -12,6 +12,7 @@ suppressMessages(library(ggalt))
 suppressMessages(library(caret))
 suppressMessages(library(png))
 suppressMessages(library(summarytools))
+suppressMessages(library(factoextra))
 
 load('rda/datasets.rda')
 gc() 
@@ -49,9 +50,54 @@ g2<-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Cloud3pm))+geom_
 gridExtra::grid.arrange(g1,g2, nrow=1)
 ```
 
-Not well separated 
+Not well separated Figure \@ref(fig:notwellsep)
+
+```{r notwellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:notwellsep}Examples of Some **NOT** Well Separated Cases"}
+g1<-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),WindSpeed9am))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+g2<-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Temp9am))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+gridExtra::grid.arrange(g1,g2, nrow=1)
+```
 
 
+```{r sepNumvar,echo=FALSE,warning=FALSE}
+x<-matrix(unlist(sapply(numVars,ksWrapper),use.names = F),ncol=3,byrow=T)
+x<-as.data.frame(x)[,-3]
+names(x)<-c('NumericVariable','D')
+x$D<-round(as.numeric(as.character(x$D)),digits = 2)
+
+kableExtra::kable_styling(knitr::kable(x,booktabs = TRUE,
+  caption = 'Results of Kolmogorov-Smirnov test on Conditional Distributions (RainTomorrow = 0 vs. RainTomorrow = 0)',
+  row.names = NA,col.names = NA),latex_options = "hold_position")
+```
+
+
+```{r locMon,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon}Finding Optimal Number for Location - Month Clustering"}
+g1<-fviz_nbclust(check,FUN=hcut,method = 'wss')
+g2<-fviz_nbclust(check,FUN=hcut,method = 'silhouette')
+g3<-fviz_gap_stat(gap_stat)
+gridExtra::grid.arrange(g1,g2,g3, ncol=1)
+```
+
+
+```{r locMon1,echo=FALSE,warning=FALSE}
+clustmat<-trainSet_dv%>%group_by(Location,Month)%>%
+  summarise(rainDays=30.5*mean(RainTomorrow),sd_rainDays=sd(RainTomorrow))%>%
+  mutate(label=paste(Location,Month, sep = '_'))%>%ungroup()%>%
+  select(Location,Month)%>%mutate(cluster=clust)
+
+kableExtra::kable_styling(knitr::kable(clustmat%>%spread(key=Month,value=cluster),booktabs = TRUE,
+  caption = 'Location-Month Clusters',
+  row.names = NA,col.names = NA),latex_options = "hold_position")
+```
+
+```{r locMon2,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon2}Number of Rain Days and Variability in Rain Days accross Clusters"}
+fviz_cluster(list(data=check,cluster=clust), geom = 'point',
+             xlab = 'Rain Days (Standardized)',ylab = 'Variability in Rain Days (Standardized)',
+             main = NULL,ggtheme = theme_bw())
+```
 
 #Results
 
