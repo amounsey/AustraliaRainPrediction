@@ -194,15 +194,30 @@ knitr::kable(ctable(trainSet_dv$Location,trainSet_dv$WindDir9am),digits = 1)
 
 location<-levels(trainSet_dv$Location)
 
-# To see conditional probabilites P(Dir/No_RainTomorrow) and P(Dir/Yes_RainTomorrow) for each local
+# To see conditional probabilites P(No_RainTomorrow/Dir) and P(Yes_RainTomorrow/Dir) for each local
 # substitute $WindDir3pm for $WindDir9am if you want to see these conditional probabilities with the 9am wind direction.
 for(l in location){
   print(l)
   x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
-                             trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm)[2]) # the Crosstab as proportions the 2nd table in the list 
+                             trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm, prop = 'c')[2]) # the Crosstab as proportions the 2nd table in the list 
   print(knitr::kable(x,digits = 2))
     cat("_________________________________________________\n")
 } 
+
+for(l in location){
+  print(l)
+  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
+                             trainSet_dv[trainSet_dv$Location==l,]$WindGustDir, prop = 'c')[2]) # the Crosstab as proportions the 2nd table in the list 
+  print(knitr::kable(x,digits = 2))
+  cat("_________________________________________________\n")
+} 
+
+x1<-ifelse(trainSet_dv[trainSet_dv$Location=="Cobar",]$RainTomorrow==0,'No','Yes')
+x2<- trainSet_dv[trainSet_dv$Location=="Cobar",]$WindGustDir
+x<-ctable(x1,x2, prop = 'c')[2] # the Crosstab as proportions the 2nd table in the list 
+kableExtra::kable_styling(knitr::kable(x,digits = 2,booktabs = TRUE,
+                                       caption = 'Conditional Probabilities No Rain Tomorrow vs. Rain Tomorrow Given WindGust Direction (Location = Cobar) ',
+                                       row.names = NA,col.names = NA),latex_options = "hold_position", full_width = T)
 
 rainDir9am<-list()
 for(l in location){
@@ -234,9 +249,56 @@ for(l in location){
   rainDir3pm[[l]]<-x[x$rainDir==1,"dir"] # returns these directions to character vector bearing the location name in the rainDir3pm list
 }
 
+rainDirGust<-list()
+for(l in location){
+  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
+                             trainSet_dv[trainSet_dv$Location==l,]$WindGustDir)[2])
+  x<-as.data.frame(x)
+  x<-as.data.frame(t(x))
+  x$dir<-row.names(x)
+  dir<-strsplit(x$dir,'[.]')
+  dir<-as.data.frame(dir)
+  x$dir<-t(dir)[,2]
+  x<-x[row.names(x)!='proportions.Total',]
+  x$rainDir<-ifelse(x$Yes>=x$Total,1,0) # indicate directions where the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
+  rainDirGust[[l]]<-x[x$rainDir==1,"dir"] # returns these directions to character vector bearing the location name in the rainDir3pm list
+}
 
+# Creating Dummy Variables indicating whether wind is blowing from a direction 
+# where the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
+trainSet_dv$rainDir9am<-NA
+trainSet_dv$rainDir3pm<-NA
+trainSet_dv$rainDirGust<-NA
+for (l in location) {
+ trainSet_dv[trainSet_dv$Location==l,"rainDir9am"]<-ifelse(trainSet_dv[trainSet_dv$Location==l,]$WindDir9am%in%rainDir9am[[l]],1,0)
+ trainSet_dv[trainSet_dv$Location==l,"rainDir3pm"]<-ifelse(trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm%in%rainDir3pm[[l]],1,0)
+ trainSet_dv[trainSet_dv$Location==l,"rainDirGust"]<-ifelse(trainSet_dv[trainSet_dv$Location==l,]$WindGustDir%in%rainDirGust[[l]],1,0)
+}
 
+knitr::kable(ctable(trainSet_dv$rainDirGust,trainSet_dv$RainTomorrow,omit.headings = F))
+library(gridExtra)
+# rowx<-c('rainDir=0','rainDir=1')
+# x1<-as.data.frame(ctable(trainSet_dv$rainDirGust,trainSet_dv$RainTomorrow,omit.headings = F)[2],
+#                   row.names = c('rainDirGust=0','rainDirGust=1','Total'))
+# names(x1)<-c('Rain\nTomorrow=0','Rain\nTomorrow=1','Total')
+# x2<-as.data.frame(ctable(trainSet_dv$rainDir9am,trainSet_dv$RainTomorrow,omit.headings = F)[2],
+#                   row.names = c('rainDir9am=0','rainDir9am=1','Total'))
+# names(x2)<-c('Rain\nTomorrow=0','Rain\nTomorrow=1','Total')
+# x3<-as.data.frame(ctable(trainSet_dv$rainDir3pm,trainSet_dv$RainTomorrow,omit.headings = F)[2],
+#                   row.names = c('rainDir3pm=0','rainDir3pm=1','Total'))
+# names(x3)<-c('Rain\nTomorrow=0','Rain\nTomorrow=1','Total')
 
+print(knitr::kable(list(x1,x2,x3),digits = 2))
+
+knitr::kable(grid.arrange(tableGrob(x1),tableGrob(x2),tableGrob(x3), nrow=1),digits = 2)
+# trainSet_dv[trainSet_dv$Location=='AliceSprings',"rainDir9am"]<-ifelse(
+#   trainSet_dv[trainSet_dv$Location=='AliceSprings',]$WindDir9am%in%rainDir9am[['AliceSprings']],1,0)
+  
+
+rainDir9am[['AliceSprings']]
+summary(trainSet_dv)
+head(trainSet_dv[(trainSet_dv$Location=='AliceSprings')&(trainSet_dv$WindDir9am%in%rainDir9am[['AliceSprings']]),c("Location","WindDir9am","rainDir9am")])
+head(trainSet_dv[(trainSet_dv$Location=='AliceSprings')&(!trainSet_dv$WindDir9am%in%rainDir9am[['AliceSprings']]),c("Location","WindDir9am","rainDir9am")])
 
 x1<-as.data.frame(x[1])
 x2<-as.data.frame(t(x1))

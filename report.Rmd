@@ -99,6 +99,41 @@ fviz_cluster(list(data=check,cluster=clust), geom = 'point',
              main = NULL,ggtheme = theme_bw())
 ```
 
+```{r winddir,echo=FALSE,warning=FALSE,message=FALSE}
+x1<-ifelse(trainSet_dv[trainSet_dv$Location=="Cobar",]$RainTomorrow==0,'No','Yes')
+x2<- trainSet_dv[trainSet_dv$Location=="Cobar",]$WindGustDir
+x<-ctable(x1,x2, prop = 'c')[2] # the Crosstab as proportions the 2nd table in the list 
+kableExtra::kable_styling(knitr::kable(x,digits = 2,booktabs = TRUE,
+  caption = 'Conditional Probabilities No Rain Tomorrow vs. Rain Tomorrow Given WindGust Direction (Location = Cobar) ',
+  row.names = NA,col.names = NA),latex_options = "hold_position", full_width = T)
+  
+```
+
+```{r raindir1, echo=FALSE,warning=FALSE,message=FALSE }
+x1<-as.data.frame(ctable(trainSet_dv$rainDirGust,trainSet_dv$RainTomorrow,omit.headings = F)[2],
+                  row.names = c('rainDirGust=0','rainDirGust=1','Total'))
+names(x1)<-c('RainTomorrow=0','RainTomorrow=1','Total')
+x2<-as.data.frame(ctable(trainSet_dv$rainDir9am,trainSet_dv$RainTomorrow,omit.headings = F)[2],
+                  row.names = c('rainDir9am=0','rainDir9am=1','Total'))
+names(x2)<-c('RainTomorrow=0','RainTomorrow=1','Total')
+x3<-as.data.frame(ctable(trainSet_dv$rainDir3pm,trainSet_dv$RainTomorrow,omit.headings = F)[2],
+                  row.names = c('rainDir3pm=0','rainDir3pm=1','Total'))
+names(x3)<-c('RainTomorrow=0','RainTomorrow=1','Total')
+
+knitr::kable(x1,digits = 2,booktabs=T, caption = "Probabilites of Rain Tomorrow Conditioned on rainDir9am")
+
+```
+
+```{r raindir2, echo=FALSE,warning=FALSE,message=FALSE }
+knitr::kable(x2,digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDir3pm")
+
+```
+
+```{r raindir3, echo=FALSE,warning=FALSE,message=FALSE }
+knitr::kable(x3,digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDirGust")
+
+```
+
 #Results
 
 #Conclusion 
