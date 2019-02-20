@@ -42,10 +42,10 @@ trainSet_dv%>%group_by(Location,Month)%>%
 Separation. Figure \@ref(fig:wellsep) example
 
 ```{r wellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:wellsep}Examples of Some Well Separated Cases"}
-g1<-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Humidity3pm))+geom_boxplot()+
+g1<-trainSet_dv%>%ggplot(aes(RainTomorrow,Humidity3pm))+geom_boxplot()+
   labs(x='RainTomorrow')+theme_bw()
 
-g2<-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Cloud3pm))+geom_boxplot()+
+g2<-trainSet_dv%>%ggplot(aes(RainTomorrow,Cloud3pm))+geom_boxplot()+
   labs(x='RainTomorrow')+theme_bw()
 gridExtra::grid.arrange(g1,g2, nrow=1)
 ```
@@ -53,10 +53,10 @@ gridExtra::grid.arrange(g1,g2, nrow=1)
 Not well separated Figure \@ref(fig:notwellsep)
 
 ```{r notwellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:notwellsep}Examples of Some **NOT** Well Separated Cases"}
-g1<-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),WindSpeed9am))+geom_boxplot()+
+g1<-trainSet_dv%>%ggplot(aes(RainTomorrow,WindSpeed9am))+geom_boxplot()+
   labs(x='RainTomorrow')+theme_bw()
 
-g2<-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Temp9am))+geom_boxplot()+
+g2<-trainSet_dv%>%ggplot(aes(RainTomorrow,Temp9am))+geom_boxplot()+
   labs(x='RainTomorrow')+theme_bw()
 gridExtra::grid.arrange(g1,g2, nrow=1)
 ```
@@ -100,7 +100,7 @@ fviz_cluster(list(data=check,cluster=clust), geom = 'point',
 ```
 
 ```{r winddir,echo=FALSE,warning=FALSE,message=FALSE}
-x1<-ifelse(trainSet_dv[trainSet_dv$Location=="Cobar",]$RainTomorrow==0,'No','Yes')
+x1<-trainSet_dv[trainSet_dv$Location=="Cobar",]$RainTomorrow
 x2<- trainSet_dv[trainSet_dv$Location=="Cobar",]$WindGustDir
 x<-ctable(x1,x2, prop = 'c')[2] # the Crosstab as proportions the 2nd table in the list 
 kableExtra::kable_styling(knitr::kable(x,digits = 2,booktabs = TRUE,
@@ -120,22 +120,33 @@ x3<-as.data.frame(ctable(trainSet_dv$rainDir3pm,trainSet_dv$RainTomorrow,omit.he
                   row.names = c('rainDir3pm=0','rainDir3pm=1','Total'))
 names(x3)<-c('RainTomorrow=0','RainTomorrow=1','Total')
 
-knitr::kable(x1,digits = 2,booktabs=T, caption = "Probabilites of Rain Tomorrow Conditioned on rainDir9am")
+kableExtra::kable_styling(knitr::kable(x1,digits = 2,booktabs=T, caption = "Probabilites of Rain Tomorrow Conditioned on rainDir9am"),latex_options = 'hold_position')
 
 ```
 
 ```{r raindir2, echo=FALSE,warning=FALSE,message=FALSE }
-knitr::kable(x2,digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDir3pm")
+kableExtra::kable_styling(knitr::kable(x2,digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDir3pm"),latex_options = 'hold_position')
 
 ```
 
 ```{r raindir3, echo=FALSE,warning=FALSE,message=FALSE }
-knitr::kable(x3,digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDirGust")
+kableExtra::kable_styling(knitr::kable(x3,digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDirGust"),latex_options = 'hold_position')
 
 ```
 
 #Results
 
+result from Logistic hyper parameter tuning
+
+```{r logistic, echo=FALSE,warning=F,message=FALSE}
+kableExtra::kable_styling(knitr::kable(cv_mod_roc$results[,1:3],booktabs=T,caption ='Optimal Hyperparameter Selection Using 10-fold nested Cross Validation'),latex_options = 'hold_position')
+
+```
+
+```{r logistic_ncvExpected,echo=FALSE,warning=F,message=FALSE}
+knitr::kable(print_metrics(cv_mod_outer))
+
+```
 #Conclusion 
 
 

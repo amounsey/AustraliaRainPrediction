@@ -31,6 +31,9 @@ save.image('rda/datasets.rda')
 library(tidyverse)
 library(summarytools)
 library(caret)
+library(repr)
+library(glmnet)
+library(ROCR)
 library(ggalt)
 library(ggrepel)
 load('rda/datasets.rda')
@@ -174,8 +177,8 @@ plot_box<-function(x){print(trainSet_dv%>%ggplot(aes(x=ifelse(RainTomorrow==0,'N
 sapply(numVars,plot_box)
 
 ksWrapper<-function(x){
-z1<-as.matrix(trainSet[trainSet$RainTomorrow==0,x])
-z2<-as.matrix(trainSet[trainSet$RainTomorrow==1,x])
+z1<-as.matrix(trainSet[trainSet$RainTomorrow==0,x]) # will need to change to 'No' later
+z2<-as.matrix(trainSet[trainSet$RainTomorrow==1,x]) # # will need to change to 'Yes' later
 D<-ks.test(z1,z2)[1]
 p_val<-ks.test(z1,z2)[2]
 return(c(x,D,p_val))
@@ -184,7 +187,7 @@ return(c(x,D,p_val))
 ksWrapper("MinTemp")
 ksWrapper("MinTemp")$statistic
 x<-matrix(unlist(sapply(numVars,ksWrapper),use.names = F),ncol=3,byrow=T)
-x<-as.data.frame(x)[,-3]
+x<-as.data.frame(x)[,-3] #exclude pvalue
 names(x)<-c('NumericVariable','D')
 x$D<-round(as.numeric(as.character(x$D)),digits = 2)
 knitr::kable(x)
@@ -276,7 +279,7 @@ for (l in location) {
 }
 
 knitr::kable(ctable(trainSet_dv$rainDirGust,trainSet_dv$RainTomorrow,omit.headings = F))
-library(gridExtra)
+# library(gridExtra)
 # rowx<-c('rainDir=0','rainDir=1')
 # x1<-as.data.frame(ctable(trainSet_dv$rainDirGust,trainSet_dv$RainTomorrow,omit.headings = F)[2],
 #                   row.names = c('rainDirGust=0','rainDirGust=1','Total'))
@@ -393,15 +396,235 @@ cluster4joining<-clustmat%>%mutate(locMon=paste(Location,Month, sep = '_'))%>%se
 trainSet_dv<-trainSet_dv%>%mutate(locMon=paste(Location,Month, sep = '_'))
 trainSet_dv<-trainSet_dv%>%left_join(cluster4joining)
 trainSet_dv$cluster<-as.factor(trainSet_dv$cluster)
+trainSet_dv$rainDir3pm<-as.factor(trainSet_dv$rainDir3pm)
+trainSet_dv$rainDir9am<-as.factor(trainSet_dv$rainDir9am)
+trainSet_dv$rainDirGust<-as.factor(trainSet_dv$rainDirGust)
 
 names(trainSet_dv)
 summary(trainSet_dv)
+summary(testSet)
 #  Logistic Model
 set.seed(2179)
 logistic_mod<-glm(RainTomorrow~cluster+RainToday+MaxTemp+Rainfall+Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+
                     Pressure9am+Pressure3pm+Cloud9am+Cloud3pm+Temp3pm, family = binomial,data = trainSet_dv)
 
 summary(logistic_mod)
+
+# Model Selection and Nested CV
+
+# bringing label back to a factor
+# trainSet_dv$RainTomorrow<-ifelse(trainSet_dv$RainTomorrow==1,'Yes','No')
+# trainSet_dv$RainTomorrow<-factor(trainSet_dv$RainTomorrow,levels = c('Yes','No'))
+# testSet$RainTomorrow<-ifelse(testSet$RainTomorrow==1,'Yes','No')
+# testSet$RainTomorrow<-factor(testSet$RainTomorrow,levels = c('Yes','No'))
+
+# Model Selection and Nested CV (ROC) ####
+
+# Inner Loop for ROC 
+weights<-ifelse(trainSet$RainTomorrow=='Yes',0.78,0.22) # to balance by reversing sample proportion
+
+fitControl<-trainControl(method = 'cv',
+                         number = 10,
+                         classProbs = T,
+                         summaryFunction = twoClassSummary)
+set.seed(2376)
+cv_mod_roc<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
+                    Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
+                    Cloud9am+Cloud3pm+Temp3pm,
+                  data = trainSet_dv,
+                  method ='glmnet',
+                  weights = weights,
+                  metric='ROC',
+                  trControl=fitControl)
+
+cv_mod_roc
+var_imp<-varImp(cv_mod_roc)
+print(var_imp)
+
+set.seed(2376)
+cv_mod_roc<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
+                    Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
+                    Cloud9am+Cloud3pm,
+                  data = trainSet_dv,
+                  method ='glmnet',
+                  weights = weights,
+                  metric='ROC',
+                  trControl=fitControl)
+
+cv_mod_roc
+#  Outer Loop (ROC) 
+## Set the hyperparameter grid to the optimal values from the inside loop
+paramGrid <- expand.grid(alpha = c(cv_mod_roc$bestTune$alpha),
+                         lambda = c(cv_mod_roc$bestTune$lambda))
+
+fitControl1 = trainControl(method = 'cv',
+                          number = 10,
+                          returnResamp="all",
+                          savePredictions = TRUE,
+                          classProbs = TRUE,
+                          summaryFunction = twoClassSummary)
+
+set.seed(4789)
+cv_mod_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
+                      Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
+                      Cloud9am+Cloud3pm+Temp3pm,
+                  data = trainSet_dv,
+                  method ='glmnet',
+                  weights = weights,
+                  tuneGrid=paramGrid,
+                  metric='ROC',
+                  trControl=fitControl1)
+
+cvReduced_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
+          Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
+          Cloud9am+Cloud3pm,
+        data = trainSet_dv,
+        method ='glmnet',
+        weights = weights,
+        tuneGrid=paramGrid,
+        metric='ROC',
+        trControl=fitControl1)
+
+print_metrics(cvReduced_outer)
+
+print_metrics = function(mod){
+  means = c(apply(mod$resample[,1:3], 2, mean), alpha = mod$resample[1,4], 
+            lambda = mod$resample[1,5], Resample = 'Mean')
+  stds = c(apply(mod$resample[,1:3], 2, sd), alpha = mod$resample[1,4], 
+           lambda = mod$resample[1,5], Resample = 'STD')
+  out = rbind(mod$resample, means, stds)
+  out[,1:3] = lapply(out[,1:3], function(x) round(as.numeric(x), 3))
+  out
+}
+print_metrics(cv_mod_outer)
+
+
+knitr::kable(print_metrics(cv_mod_outer))
+cv_mod_roc$results[,1:3]
+
+# Model Selection and Nested CV (Recall) ####
+# Inner Loop for Recall 
+weights<-ifelse(trainSet$RainTomorrow=='Yes',0.78,0.22) # to balance by reversing sample proportion
+fitControl<-trainControl(method = 'cv',
+                         number = 10,
+                         classProbs = T,
+                         summaryFunction = prSummary)
+
+set.seed(2376)
+cv_mod_recall<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+MaxTemp+RainToday+Rainfall+
+                       Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
+                       Cloud9am+Cloud3pm+Temp3pm,
+                  data = trainSet_dv,
+                  method ='glmnet',
+                  weights = weights,
+                  metric='Recall',
+                  trControl=fitControl)
+
+cv_mod_recall
+
+#  Outer Loop (Recall)
+## Set the hyperparameter grid to the optimal values from the inside loop
+paramGrid <- expand.grid(alpha = c(cv_mod_recall$bestTune$alpha),
+                         lambda = c(cv_mod_recall$bestTune$lambda))
+
+fitControl = trainControl(method = 'cv',
+                          number = 10,
+                          returnResamp="all",
+                          savePredictions = TRUE,
+                          classProbs = TRUE,
+                          summaryFunction = prSummary)
+
+set.seed(4789)
+cv_mod_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+MaxTemp+RainToday+Rainfall+
+                      Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
+                      Cloud9am+Cloud3pm+Temp3pm,
+                    data = trainSet_dv,
+                    method ='glmnet',
+                    weights = weights,
+                    tuneGrid=paramGrid,
+                    metric='Recall',
+                    trControl=fitControl)
+
+print_metrics = function(mod){
+  means = c(apply(mod$resample[,1:3], 2, mean), alpha = mod$resample[1,4], 
+            lambda = mod$resample[1,5], Resample = 'Mean')
+  stds = c(apply(mod$resample[,1:3], 2, sd), alpha = mod$resample[1,4], 
+           lambda = mod$resample[1,5], Resample = 'STD')
+  out = rbind(mod$resample, means, stds)
+  out[,1:3] = lapply(out[,1:3], function(x) round(as.numeric(x), 3))
+  out
+}
+print_metrics(cv_mod_outer)
+
+
+
+# AdaBoost (Adaptive Boosting) ####
+library(gbm)
+library(e1071)
+library(MLmetrics)
+
+fitControl <- trainControl(method = "cv",
+                           number = 5,
+                           sampling = 'up',
+                           returnResamp="all",
+                           savePredictions = TRUE,
+                           classProbs = TRUE,
+                           summaryFunction = twoClassSummary)
+
+set.seed(1234)
+bb_fit_inside_tw <- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
+                            Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
+                            Cloud9am+Cloud3pm+Temp3pm, 
+                          data = trainSet_dv,  
+                          method = "gbm", # Gradient boosted tree model
+                          trControl = fitControl, 
+                          verbose = FALSE,
+                          metric="ROC")
+print(bb_fit_inside_tw)
+
+var_imp = varImp(bb_fit_inside_tw)
+print(var_imp)
+plot(var_imp)
+
+# Reduced model based on variable importance cutoff =2
+
+set.seed(1234)
+bb_fit_inside_tw <- train(RainTomorrow~rainDir9am+rainDir3pm+rainDirGust+Rainfall+
+                            Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
+                            Cloud3pm+Temp3pm, 
+                          data = trainSet_dv,  
+                          method = "gbm", # Gradient boosted tree model
+                          trControl = fitControl, 
+                          verbose = FALSE,
+                          metric="ROC")
+print(bb_fit_inside_tw)
+
+## Set the hyperparameter grid to the optimal values from the inside loop
+paramGrid <- expand.grid(n.trees = c(150), interaction.depth = c(3), shrinkage = c(0.1), n.minobsinnode = c(10))
+
+set.seed(5678)
+bb_fit_outside_tw <- train(RainTomorrow~rainDir9am+rainDir3pm+rainDirGust+Rainfall+
+                             Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
+                             Cloud3pm+Temp3pm, 
+                           data = trainSet_dv, 
+                           method = "gbm", # Gradient boosted tree model
+                           trControl = fitControl, 
+                           tuneGrid = paramGrid, 
+                           verbose = FALSE,
+                           metric="ROC")
+
+print_metrics = function(mod){
+  means = c(apply(mod$resample[,1:3], 2, mean), n.trees = mod$resample[1,4], interaction.depth = mod$resample[1,5], 
+            shrinkage = mod$resample[1,6], n.minobsinnode = mod$resample[1,7], Resample = 'Mean')
+  stds = c(apply(mod$resample[,1:3], 2, sd), n.trees = mod$resample[1,4], interaction.depth = mod$resample[1,5], 
+           shrinkage = mod$resample[1,6], n.minobsinnode = mod$resample[1,7], Resample = 'STD')
+  out = rbind(mod$resample, means, stds)
+  out[,1:3] = lapply(out[,1:3], function(x) round(as.numeric(x), 3))
+  out
+}
+print_metrics(bb_fit_outside_tw)
+
+# save and other wrap up ####
 
 save.image('rda/datasets.rda')
 
