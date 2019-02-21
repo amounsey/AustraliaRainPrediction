@@ -139,14 +139,46 @@ kableExtra::kable_styling(knitr::kable(x3,digits = 2,booktabs=T,caption = "Proba
 result from Logistic hyper parameter tuning
 
 ```{r logistic, echo=FALSE,warning=F,message=FALSE}
-kableExtra::kable_styling(knitr::kable(cv_mod_roc$results[,1:3],booktabs=T,caption ='Optimal Hyperparameter Selection Using 10-fold nested Cross Validation'),latex_options = 'hold_position')
+kableExtra::kable_styling(knitr::kable(cv_mod_roc$results[,1:3],booktabs=T,caption ='Optimal Hyperparameter Selection Using Logistic Model 10-fold nested Cross Validation'),latex_options = 'hold_position')
 
 ```
 
-```{r logistic_ncvExpected,echo=FALSE,warning=F,message=FALSE}
-knitr::kable(print_metrics(cv_mod_outer))
+```{r varImpLogistic,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:varImpLogistic}Variable Importance for Logistic Model"}
+plot(var_imp_logistics)
 
 ```
+we drop ... the optimal hyperparameters values were the same with no significant change in ROC 
+
+```{r logisticncvExpected,echo=FALSE,warning=F,message=FALSE}
+kableExtra::kable_styling(knitr::kable(print_metrics_logistic(cvReduced_outer),booktabs=T, caption = 'Expected Performance of the Logistic Model'),latex_options = 'hold_position')
+
+```
+
+##Adaptive Boosting Model
+
+Tuning parameter 'shrinkage' was held constant at a value of 0.1
+Tuning parameter 'n.minobsinnode' was held constant at a value of 10
+ROC was used to select the optimal model using the largest value.
+The final values used for the model were n.trees = 150, interaction.depth = 3, shrinkage = 0.1 and n.minobsinnode = 10.
+
+```{r adaboost, echo=FALSE,warning=F,message=FALSE}
+kableExtra::kable_styling(knitr::kable(bb_fit_inside_tw$results[,1:7],booktabs=T,caption ='Optimal Hyperparameter Selection for AdaBoost Model Using 5-fold nested Cross Validation'),latex_options = 'hold_position')
+```
+
+```{r varImpAdaboost,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:varImpLogistic}Variable Importance for AdaBoost Model"}
+plot(var_imp_adaboost)
+
+```
+
+```{r adaboost1, echo=FALSE,warning=F,message=FALSE}
+kableExtra::kable_styling(knitr::kable(bb_fit_inside_tw_reduced$results[,1:7],booktabs=T,caption ='Optimal Hyperparameter Selection for AdaBoost (Reduced) Model Using 5-fold nested Cross Validation'),latex_options = 'hold_position')
+```
+
+```{r adaboostncvExpected,echo=FALSE,warning=F,message=FALSE}
+kableExtra::kable_styling(knitr::kable(print_metrics_adaboost(bb_fit_outside_tw),booktabs=T, caption = 'Expected Performance of the AdaBoost Model'),latex_options = 'hold_position')
+
+```
+
 #Conclusion 
 
 
