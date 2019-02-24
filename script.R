@@ -1,4 +1,5 @@
 # Import Data ####
+weather_del <- readr::read_csv("data/weather.csv")
 weather <- readr::read_csv("data/weather.csv")
 comment(weather)<-c('Date-The date of observation',
                     'Location-The common name of the location of the weather station',
@@ -31,11 +32,18 @@ save.image('rda/datasets.rda')
 library(tidyverse)
 library(summarytools)
 library(caret)
+library(gbm)
 library(repr)
 library(glmnet)
 library(ROCR)
 library(ggalt)
 library(ggrepel)
+library(cluster)
+library(factoextra)
+library(gbm)
+library(pROC)
+#library(e1071)
+library(MLmetrics)
 load('rda/datasets.rda')
 
 # Required Functions ####
@@ -149,6 +157,7 @@ trainSet_dv%>%group_by(Location,Month)%>%
   theme_bw()+theme(axis.text.x = element_text(angle=90),plot.margin = margin(2,2,2,2))
 
 summary(trainSet_dv)
+summary(testSet)
 
 cor.test(ifelse(trainSet$RainToday=='No',0,1),trainSet$RainTomorrow)
 cor.test(trainSet$Humidity3pm,trainSet$RainTomorrow)
@@ -201,7 +210,7 @@ location<-levels(trainSet_dv$Location)
 # substitute $WindDir3pm for $WindDir9am if you want to see these conditional probabilities with the 9am wind direction.
 for(l in location){
   print(l)
-  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
+  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,
                              trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm, prop = 'c')[2]) # the Crosstab as proportions the 2nd table in the list 
   print(knitr::kable(x,digits = 2))
     cat("_________________________________________________\n")
@@ -224,7 +233,7 @@ kableExtra::kable_styling(knitr::kable(x,digits = 2,booktabs = TRUE,
 
 rainDir9am<-list()
 for(l in location){
-  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
+  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,
                              trainSet_dv[trainSet_dv$Location==l,]$WindDir9am)[2])
   x<-as.data.frame(x)
   x<-as.data.frame(t(x))
@@ -239,7 +248,7 @@ for(l in location){
 
 rainDir3pm<-list()
 for(l in location){
-  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
+  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,
                              trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm)[2])
   x<-as.data.frame(x)
   x<-as.data.frame(t(x))
@@ -254,7 +263,7 @@ for(l in location){
 
 rainDirGust<-list()
 for(l in location){
-  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
+  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,
                              trainSet_dv[trainSet_dv$Location==l,]$WindGustDir)[2])
   x<-as.data.frame(x)
   x<-as.data.frame(t(x))
@@ -334,8 +343,7 @@ d<-dist(check)
 hc1<-hclust(d)
 plot(hc1)
 rect.hclust(hc1,k=4)
-library(cluster)
-library(factoextra)
+
 hc<-agnes(check)
 hc$ac
 pltree(hc, main='Dendrogram of Location_Month')
@@ -498,7 +506,49 @@ print_metrics_logistic = function(mod){
   out
 }
 # print_metrics_logistic(cv_mod_outer)
+# library(ROCR)
+library(pROC)
+#library(plotROC)
 
+testSet1$Month<-months(testSet1$Date, abbreviate = T) #  extract month to get season variation
+testSet1<-testSet1%>%mutate(locMon=paste(Location,Month, sep = '_'))
+testSet1<-testSet1%>%left_join(cluster4joining)
+testSet1$cluster<-as.factor(testSet1$cluster)
+
+ctrl <- trainControl(method="cv", summaryFunction=twoClassSummary, classProbs=T,
+                     savePredictions = T)
+
+set.seed(4789)
+modFit4roc <- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
+                 Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
+                 Cloud9am+Cloud3pm,
+               data = trainSet_dv,
+               method ='glmnet',
+               weights = weights,
+               tuneGrid=paramGrid_logistic, 
+               trControl=fitControl1)
+
+cvReduced_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
+                         Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
+                         Cloud9am+Cloud3pm,
+                       data = trainSet_dv,
+                       method ='glmnet',
+                       weights = weights,
+                       tuneGrid=paramGrid_logistic,
+                       metric='ROC',
+                       trControl=fitControl1)
+
+plotROC::geom_roc()
+
+df<-data.frame(truth=modFit4roc$trainingData$.outcome,predicted=modFit4roc$pred$Yes,z=modFit4roc$pred$Resample)
+ggplot(df, aes(d=truth,m=predicted))+geom_roc(n.cuts = 10, labelround = 2)+facet_wrap(~z) + coord_fixed()
+summary(df)
+
+plot.roc(modFit4roc$pred$obs,modFit4roc$pred$No)
+plot.roc(cvReduced_outer$pred$obs,cvReduced_outer$pred$Yes, print.thres=T)
+plot.roc(modFit4roc$pred$obs,modFit4roc$pred$Yes, print.thres=T)
+
+summary(testSet1)
 
 knitr::kable(print_metrics(cv_mod_outer))
 cv_mod_roc$results[,1:3]
@@ -560,9 +610,7 @@ print_metrics(cv_mod_outer)
 
 
 # AdaBoost (Adaptive Boosting) ####
-library(gbm)
-#library(e1071)
-library(MLmetrics)
+
 
 fitControl_adaboost <- trainControl(method = "cv",
                            number = 5,
@@ -625,6 +673,40 @@ print_metrics_adaboost = function(mod){
 }
 print_metrics_adaboost(bb_fit_outside_tw)
 
+plot.roc(bb_fit_outside_tw$pred$obs,bb_fit_outside_tw$pred$Yes, print.thres=T, col='blue',print.thres.pch=8,
+         print.thres.adj=0, print.thres.cex=0.7, print.auc=T)
+plot.roc(modFit4roc$pred$obs,modFit4roc$pred$Yes, print.thres=T,add=T, col='red',print.thres.pch=1,
+         print.thres.adj=1, print.thres.cex=0.7)
+
+
+# Predicting with Adaboost Model ####
+testSet1<-testSet # duplicating testset in case something goes wrong
+
+# Creating Dummy Variables indicating whether wind is blowing from a direction 
+# where the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
+testSet1$rainDir9am<-NA
+testSet1$rainDir3pm<-NA
+testSet1$rainDirGust<-NA
+for (l in location) {
+  testSet1[testSet1$Location==l,"rainDir9am"]<-ifelse(testSet1[testSet1$Location==l,]$WindDir9am%in%rainDir9am[[l]],1,0)
+  testSet1[testSet1$Location==l,"rainDir3pm"]<-ifelse(testSet1[testSet1$Location==l,]$WindDir3pm%in%rainDir3pm[[l]],1,0)
+  testSet1[testSet1$Location==l,"rainDirGust"]<-ifelse(testSet1[testSet1$Location==l,]$WindGustDir%in%rainDirGust[[l]],1,0)
+}
+
+testSet1$rainDir9am<-as.factor(testSet1$rainDir9am)
+testSet1$rainDir3pm<-as.factor(testSet1$rainDir3pm)
+testSet1$rainDirGust<-as.factor(testSet1$rainDirGust)
+
+testSet1$prediction<-predict(bb_fit_outside_tw,newdata = testSet1)
+
+confussionMat<-caret::confusionMatrix(testSet1$prediction,testSet1$RainTomorrow)
+MLmetrics::Recall(testSet1$RainTomorrow,testSet1$prediction,positive = "Yes")
+MLmetrics::Sensitivity(testSet1$RainTomorrow,testSet1$prediction)
+MLmetrics::Specificity(testSet1$RainTomorrow,testSet1$prediction)
+MLmetrics::Precision(testSet1$RainTomorrow,testSet1$prediction)
+summary(testSet1)
+levels(testSet1$Location)
+unique(testSet1$Location)
 # save and other wrap up ####
 
 save.image('rda/datasets.rda')
