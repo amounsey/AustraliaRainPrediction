@@ -1,7 +1,7 @@
 ---
 title: "Australia Next Day Rain Prediction"
 author: "Allister Mounsey"
-date: "11 February 2019"
+date: "24 February 2019"
 output: bookdown::pdf_document2
 ---
 
@@ -33,33 +33,42 @@ The was obtained from Kaggle, the following is the link to the dataset: <https:/
 * **MaxTemp**-The maximum temperature in degrees celsius,
 * **Rainfall**-The amount of rainfall recorded for the day in mm,
 * **Evaporation**-The so-called Class A pan evaporation (mm) in the 24 hours to 9am,
-* Sunshine-The number of hours of bright sunshine in the day,
-* WindGustDir-The direction of the strongest wind gust in the 24 hours to midnight,
-* WindGustSpeed-The speed (km/h) of the strongest wind gust in the 24 hours to midnight,
-* WindDir9am-Direction of the wind at 9am,
-* WindDir3pm-Direction of the wind at 3pm,
-* WindSpeed9am-Wind speed (km/hr) averaged over 10 minutes prior to 9am,
-* WindSpeed3pm-Wind speed (km/hr) averaged over 10 minutes prior to 3pm,
-* Humidity9am-Humidity (percent) at 9am,
-* Humidity3pm-Humidity (percent) at 3pm,
-* Pressure9am-Atmospheric pressure (hpa) reduced to mean sea level at 9am,
-* Pressure3pm-Atmospheric pressure (hpa) reduced to mean sea level at 3pm',
-* Cloud9am-Fraction of sky obscured by cloud at 9am. This is measured in \"oktas\", which are a unit of eigths. It records how many eigths of the sky are obscured by cloud. A 0 measure indicates completely clear sky whilst an 8 indicates that it is completely overcast,
-* Cloud3pm-Fraction of sky obscured by cloud (in \"oktas\": eighths) at 3pm. See Cload9am for a description of the values,
-* Temp9am-Temperature (degrees C) at 9am,
-* Temp3pm-Temperature (degrees C) at 3pm,
-* RainToday-Boolean: 1 if precipitation (mm) in the 24 hours to 9am exceeds 1mm, otherwise 0,
+* **Sunshine**-The number of hours of bright sunshine in the day,
+* **WindGustDir**-The direction of the strongest wind gust in the 24 hours to midnight,
+* **WindGustSpeed**-The speed (km/h) of the strongest wind gust in the 24 hours to midnight,
+* **WindDir9am**-Direction of the wind at 9am,
+* **WindDir3pm**-Direction of the wind at 3pm,
+* **WindSpeed9am**-Wind speed (km/hr) averaged over 10 minutes prior to 9am,
+* **WindSpeed3pm**-Wind speed (km/hr) averaged over 10 minutes prior to 3pm,
+* **Humidity9am**-Humidity (percent) at 9am,
+* **Humidity3pm**-Humidity (percent) at 3pm,
+* **Pressure9am**-Atmospheric pressure (hpa) reduced to mean sea level at 9am,
+* **Pressure3pm**-Atmospheric pressure (hpa) reduced to mean sea level at 3pm',
+* **Cloud9am**-Fraction of sky obscured by cloud at 9am. This is measured in \"oktas\", which are a unit of eigths. It records how many eigths of the sky are obscured by cloud. A 0 measure indicates completely clear sky whilst an 8 indicates that it is completely overcast,
+* **Cloud3pm**-Fraction of sky obscured by cloud (in \"oktas\": eighths) at 3pm. See Cload9am for a description of the values,
+* **Temp9am**-Temperature (degrees C) at 9am,
+* **Temp3pm**-Temperature (degrees C) at 3pm,
+* **RainToday**-Boolean: 1 if precipitation (mm) in the 24 hours to 9am exceeds 1mm, otherwise 0,
 * ***RISK_MM***-The amount of rain. A kind of measure of the \"risk\",
-* RainTomorrow-The target variable. Did it rain tomorrow?
+* **RainTomorrow**-The target variable. Did it rain tomorrow?
 
-Figure \@ref(fig:map) shows
+The variable ***RISK_MM*** was deleted from the dataset based on the cautionary note from the Kaggle webpage advising that this variable should be excluded from binary classification models because it will "leak the answers to your model and reduce its predictability".
+
+The variables **WindDir9am/3pm** can legitimately take on an NA value in the absence of wind- that is **WindSpeed9am/3pm = 0** respectively. This is addressed by creating a new factor level called *NoDir* for these cases. After accounting for the *NoDir* cases in WindDir variables, approximately 60% of cases (rows) in the dataset contained atleast one or more missing values. Quick examination of these cases reveal a tendency for some stations (**Locations**) to consistently report NAs for some variables,in such cases imputation does seem advisable. All these missing cases were therefore dropped resulting in the dataset being reduced to 58,079 observations over 26 unique **Locations** as opposed to 49 orginally. The analysis and results that follow is for these 26 locations using the truncated dataset.
+
+Having cleaned the **weather** dataset, it was then randomly split in an 8:2 ratio. The larger dataset was used for training the models and is herein referred to as the **trainSet** while the remaining 20% was reserved exclusively for testing purposed (the **testSet**). All data analysis was conducted only on the **trainSet**.
+
+##Data Analysis
+In thinking of constructing a rain prediction model for Australia, rudimentary inquiry into rainfall partners across the continent was conducted. Figure \@ref(fig:map) represents an insightfully summary of rainfall pattern across the country. The figure shows progressively lower number of raindays as on moves inland from the northern, eastern and southern coast, with interior and western regions having very few rain days.  
 
 ```{r map,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:map}Rain Days across Australia \\ Source: <http://www.bom.gov.au/jsp/ncc/climate_averages/raindays/index.jsp>" }
 aussie_map<-readPNG('figs/rain1mman.png')
 grid::grid.raster(aussie_map)
 ```
 
-Figure \@ref(fig:seasonal) shows seasonal 
+Another important weather feature is the seasonal patterns in rainfall. Figure \@ref(fig:seasonal) illustrates two readily observed seasonal rain patterns. In some regions like Darwin there is a Summer (Southern Hemisphere) Monsoon - where over period December to March there is significantly increased rainfall, both in terms of volume and the number of rain days in the month. While in areas like Portland there is a Winter Monsoon starting around May and ending in September.
+
+Figures \@ref(fig:map) and \@ref(fig:seasonal) points to the possibility that combinations of location and months may be jointly predictive of the label- **RainTomorrow**. For example Darwin in the month of January (Darwin-January) any given day has typically has a $\frac{20}{30}$ chance of rain where as in Portland-January the chance is typically $\frac{5}{30}$. The contrast is however reversed if Portland-July and Darwin-July are examined. This subject will be returned to in the next sub-section.
 
 ```{r seasonal,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:seaonal}Monthly Rainfall Patterns by Location"}
 trainSet_dv%>%group_by(Location,Month)%>%
@@ -70,7 +79,8 @@ trainSet_dv%>%group_by(Location,Month)%>%
   theme_bw()+theme(axis.text.x = element_text(angle=90),legend.position = 'bottom')
 ```
 
-Separation. Figure \@ref(fig:wellsep) example
+##Feature Selection and Engineering
+Each numeric variable in the training dataset was ... Figure \@ref(fig:wellsep) example
 
 ```{r wellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:wellsep}Examples of Some Well Separated Cases"}
 g1<-trainSet_dv%>%ggplot(aes(RainTomorrow,Humidity3pm))+geom_boxplot()+
@@ -103,6 +113,7 @@ kableExtra::kable_styling(knitr::kable(x,booktabs = TRUE,
   caption = 'Results of Kolmogorov-Smirnov test on Conditional Distributions (RainTomorrow = 0 vs. RainTomorrow = 0)',
   row.names = NA,col.names = NA),latex_options = "hold_position")
 ```
+
 
 
 ```{r locMon,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon}Finding Optimal Number for Location - Month Clustering"}
@@ -166,7 +177,7 @@ kableExtra::kable_styling(knitr::kable(x3,digits = 2,booktabs=T,caption = "Proba
 ```
 
 #Results
-
+##Logistic Model
 result from Logistic hyper parameter tuning
 
 ```{r logistic, echo=FALSE,warning=F,message=FALSE}
