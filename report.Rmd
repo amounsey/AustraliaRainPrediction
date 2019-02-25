@@ -68,7 +68,7 @@ grid::grid.raster(aussie_map)
 
 Another important weather feature is the seasonal patterns in rainfall. Figure \@ref(fig:seasonal) illustrates two readily observed seasonal rain patterns. In some regions like Darwin there is a Summer (Southern Hemisphere) Monsoon - where over period December to March there is significantly increased rainfall, both in terms of volume and the number of rain days in the month. While in areas like Portland there is a Winter Monsoon starting around May and ending in September.
 
-Figures \@ref(fig:map) and \@ref(fig:seasonal) points to the possibility that combinations of location and months may be jointly predictive of the label- **RainTomorrow**. For example Darwin in the month of January (Darwin-January) any given day has typically has a $\frac{20}{30}$ chance of rain where as in Portland-January the chance is typically $\frac{5}{30}$. The contrast is however reversed if Portland-July and Darwin-July are examined. This subject will be returned to in the next sub-section.
+Figures \@ref(fig:map) and \@ref(fig:seasonal) points to the possibility that combinations of location and months may be jointly predictive of the label- **RainTomorrow**. For example Darwin in the month of January (Darwin-January) any given day has typically has a $\frac{20}{30}$ chance of rain where as in Portland-January the chance is typically $\frac{5}{30}$. The contrast is however reversed if Portland-July and Darwin-July are examined. This phenomenon referenced here as *Location-Month Effect* will be returned to in the next sub-section.
 
 ```{r seasonal,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:seaonal}Monthly Rainfall Patterns by Location"}
 trainSet_dv%>%group_by(Location,Month)%>%
@@ -80,7 +80,7 @@ trainSet_dv%>%group_by(Location,Month)%>%
 ```
 
 ##Feature Selection and Engineering
-Each numeric variable in the training dataset was ... Figure \@ref(fig:wellsep) example
+Each numeric *feature* in the **trainSet** was examine to determine the extent to which it separated along *label* values - that is the degree to which the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'Yes' is different from the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'No'. This examination was conducted at two ways: (1) using *box-plots* and (2) using the * Kolmogorov–Smirnov test (KS test)*. Some *features* are 'well separated' as can be observed in figure \@ref(fig:wellsep). This figure shows that the distribution of **Humidity3pm** conditioned on **RainTomorrow**= 'Yes' is shifted to the right (that it typically contains higher values) of that which is conditioned on **RainTomorrow**= 'No'. **Clouds3pm** is similarly well separated. 
 
 ```{r wellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:wellsep}Examples of Some Well Separated Cases"}
 g1<-trainSet_dv%>%ggplot(aes(RainTomorrow,Humidity3pm))+geom_boxplot()+
@@ -91,7 +91,7 @@ g2<-trainSet_dv%>%ggplot(aes(RainTomorrow,Cloud3pm))+geom_boxplot()+
 gridExtra::grid.arrange(g1,g2, nrow=1)
 ```
 
-Not well separated Figure \@ref(fig:notwellsep)
+Some examples of 'not well separated' features are illustrated in figure \@ref(fig:notwellsep). In figure \@ref(fig:notwellsep) it is easily observed that the degree of distributional overlap is high across case conditioned on the outcome of the *Label* -**RainTomorrow**.
 
 ```{r notwellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:notwellsep}Examples of Some **NOT** Well Separated Cases"}
 g1<-trainSet_dv%>%ggplot(aes(RainTomorrow,WindSpeed9am))+geom_boxplot()+
@@ -102,6 +102,7 @@ g2<-trainSet_dv%>%ggplot(aes(RainTomorrow,Temp9am))+geom_boxplot()+
 gridExtra::grid.arrange(g1,g2, nrow=1)
 ```
 
+The test statistic - *D* for the *KS test* was used to determine the relative strength (degree) of 'separatedness' as well as to determine a cut-off point for what should be considered as reasonably 'separated' *feature*. The cut-off point choosen was $D=0.1$. *Features* with $D\geq 0.1$ were considered 'well-separated' and were selected as *features* to be used in constructing the models.
 
 ```{r sepNumvar,echo=FALSE,warning=FALSE}
 x<-matrix(unlist(sapply(numVars,ksWrapper),use.names = F),ncol=3,byrow=T)
@@ -110,11 +111,11 @@ names(x)<-c('NumericVariable','D')
 x$D<-round(as.numeric(as.character(x$D)),digits = 2)
 
 kableExtra::kable_styling(knitr::kable(x,booktabs = TRUE,
-  caption = 'Results of Kolmogorov-Smirnov test on Conditional Distributions (RainTomorrow = 0 vs. RainTomorrow = 0)',
+  caption = 'Results of Kolmogorov-Smirnov test on Conditional Distributions (RainTomorrow = No vs. RainTomorrow = Yes)',
   row.names = NA,col.names = NA),latex_options = "hold_position")
 ```
 
-
+The *Location-Month Effect (LME)* referred to previous may prove to be predictive of the *Label*. Since there are 26 locations in the **trainSet** should an attempt be made to directly leverage the LME at total of ($26 \times 12$) 312 factor levels must created and more critically 311 of them must be estimated.  To overcome the computational cost of this a *clustering* approach is employed to simultaneously leverage the LME while reducing computational load. 
 
 ```{r locMon,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon}Finding Optimal Number for Location - Month Clustering"}
 g1<-fviz_nbclust(check,FUN=hcut,method = 'wss')
@@ -176,6 +177,9 @@ kableExtra::kable_styling(knitr::kable(x3,digits = 2,booktabs=T,caption = "Proba
 
 ```
 
+## Models and Estimation Techniques
+*Be sure to speak about scaleing and centering numeric features*
+
 #Results
 ##Logistic Model
 result from Logistic hyper parameter tuning
@@ -224,6 +228,9 @@ kableExtra::kable_styling(knitr::kable(print_metrics_adaboost(bb_fit_outside_tw)
 ```{r adaboostConfusMat, echo=FALSE,warning=F,message=FALSE}
 kableExtra::kable_styling(knitr::kable(confussionMat[['table']], booktabs=T, caption = "Confusion Matrix for AdaBoost Model"),latex_options = 'hold_position')
 ```
+
+## A Hybrid Solution
+
 #Conclusion 
 
 
