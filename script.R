@@ -1,5 +1,10 @@
+#***************************************************************************************#
+# The Final Version                                                                     #
+#                                                                                       #
+#***************************************************************************************#
+
 # Import Data ####
-weather_del <- readr::read_csv("data/weather.csv")
+
 weather <- readr::read_csv("data/weather.csv")
 comment(weather)<-c('Date-The date of observation',
                     'Location-The common name of the location of the weather station',
@@ -26,7 +31,13 @@ comment(weather)<-c('Date-The date of observation',
                     'RISK_MM-The amount of rain. A kind of measure of the \"risk\"',
                     'RainTomorrow-The target variable. Did it rain tomorrow?')
 
-save.image('rda/datasets.rda')
+# save.image('rda/datasets.rda')
+# Converting from png to pdf - easier for knitr to handle
+pdf('figs/aussiemap.pdf')
+aussie_map<-readPNG('figs/rain1mman.png')
+grid::grid.raster(aussie_map)
+dev.off()
+rm(aussie_map)
 
 # Required Libraries & Dataset ####
 library(tidyverse)
@@ -43,8 +54,8 @@ library(factoextra)
 library(gbm)
 library(pROC)
 #library(e1071)
-library(MLmetrics)
-load('rda/datasets.rda')
+#library(MLmetrics)
+load('rda/datasets_wip.rda')
 
 # Required Functions ####
 labelFinder<-function(x,df=weather){
@@ -62,29 +73,31 @@ num_col<-function(df,vars){
 
 # Data Cleaning ####
 weather$Date<-as.Date(weather$Date,'%d/%m/%Y') # fix date
-weather$Location<-as.factor(weather$Location)
 summary(weather)
-# class(weather$Location)
-# labelFinder(Sun)
-# labelFinder(Evap)
-# Sunshine & Evaporation should be numeric
-# class(weather)
+# Sunshine & Evaporation should be numeric, this adjustment is done below
 weather<-weather%>%mutate_at(vars(Evaporation:Sunshine),funs(as.numeric(.)))
-knitr::kable(table(weather$Location, useNA = 'ifany'))
-table(is.na(weather$Date))
+
+factorvars<-c("Location","WindGustDir","WindDir9am","WindDir3pm","RainToday","RainTomorrow") #variables to become factors
+weather<-weather%>%mutate_at(vars(factorvars),funs(as.factor(.)))
+
+# The levels in RainTomorrow are 'No', 'Yes'.
+# As Caret by default recognises the first level as the +ve case, we reorder the levels 
+weather$RainTomorrow<-factor(weather$RainTomorrow,levels = c('Yes','No'))
 
 summary(weather)
-#  Lots of NAs all over the place
-cor(weatherSelect$Sunshine,weatherSelect$Evaporation,use =  "pairwise.complete.obs") # >[1] 0.3738033 
+# There are Lots of NAs all over the place
+# Quick examination of these cases reveal a tendency for some stations Locations to consistently report NAs for some variables,
+# in such cases imputation does seem advisable
+# However the variables WindDir9am/3pm can legitimately take on an NA value in the absence of wind- that is WindSpeed9am/3pm = 0 respectively 
 
-weather_WindDir_issu<-weather%>%filter((is.na(WindDir9am)&WindSpeed9am==0)|(is.na(WindDir3pm)&WindSpeed3pm==0))
+dim(weather%>%filter((is.na(WindDir9am)&WindSpeed9am==0)|(is.na(WindDir3pm)&WindSpeed3pm==0)))[1] # number legitimate NAs
 
-knitr::kable(freq(weather_WindDir_issu$Location))
-# WindDir can be NA if windspeed is 0 - WindDir issue. 
-# There are about 9247 such cases  in weather dataframe
+# There are about 9247 such legitimate WindDir NAs (the WindDir issue)in weather dataframe
 # Fixing this WindDir issue
-
 weather<-as_tibble(rownames_to_column(weather,'Index')) # to row numbers to use later
+
+# Returning WindDir9am and WindDir3pm to character vectors temporarily
+weather<-weather%>%mutate_at(vars(WindDir9am,WindDir3pm),funs(as.character(.)))
 
 WindDir9amIssue_index<-weather%>%filter(is.na(WindDir9am)&WindSpeed9am==0)%>%.$Index
 WindDir9amIssue_index<-as.numeric(WindDir9amIssue_index)
@@ -97,28 +110,22 @@ weather[WindDir3pmIssue_index,"WindDir3pm"]<-'NoDir' #WindDir3pm issue fixed
 
 weather<-weather%>%select(-Index,-RISK_MM) #droping Index and droping Risk_MM as Advised (see README)
 
+# WindDir Issue fixed, dropping NA values now.
 weather<-weather%>%drop_na() # Droping all cases(rows) containing NA values
-str(weather)
 
-weather<-weather%>%mutate(RainTomorrow=as.factor(RainTomorrow),
-                          RainToday=as.factor(RainToday),WindGustDir=as.factor(WindGustDir),
-                          WindDir9am=as.factor(WindDir9am),WindDir3pm=as.factor(WindDir3pm)) # convert chr variables into factors
+# Reinstating WindDir9am and WindDir3pm as factors
+weather<-weather%>%mutate_at(vars(WindDir9am,WindDir3pm),funs(as.factor(.)))
+summary(weather)
+levels(weather$WindDir3pm)
 
-# set.seed(34)
-# sample(weather$RainTomorrow,30,replace = F)
-
-weather$RainTomorrow<-ifelse(weather$RainTomorrow=='No',0,1) #  code Label 0-No and 1-Yes
-
-knitr::kable(freq(weather$RainTomorrow)) #  check how much imbalance in the values of the label
-#knitr::kable(freq(weather$RainToday))
 unique(weather$Location) #  there are now only 26 unique Locations as opposed to 49 before
 levels(weather$Location) #  Highlights the same problem
 weather$Location<-as.character(weather$Location) #  to remove orginal factor levels  
 weather$Location<-as.factor(weather$Location) # to Generate new factor levels
 levels(weather$Location) #  confirmation check
-  
-summary(weather)
-knitr::kable(freq(weather$Location))
+
+rmlist<-c('factorvars',"WindDir3pmIssue_index","WindDir9amIssue_index",'rmlist')
+rm(list = rmlist) # getting rid of unnecessary objects
 
 # Creating Training and Test Datasets ####
 set.seed(286)
@@ -129,127 +136,148 @@ testSet<-weather[-trainIndex,] #  Testing dataset created
 unique(trainSet$Location) # Confirming that all levels of Location are captured in the trainSet
 
 # Data Visualization  ####
-trainSet_dv<-trainSet # Create a training dataset for data visualisation the trainSet will be scaled and centered later
-trainSet_dv$Month<-months(trainSet_dv$Date, abbreviate = T) #  extract month to get season variation
-str(trainSet_dv$Month)
-month_order<-unique(trainSet_dv$Month)
-trainSet_dv$Month<-factor(trainSet_dv$Month, levels=month_order)
+freq(trainSet$RainTomorrow) #  check how much imbalance in the values of the label  
+freq(trainSet$Location)
+
+#Doing all charts and Tables before scaling and centering trainSet and testSet
+
+trainSet$Month<-months(trainSet$Date, abbreviate = T) #  extract month to get season variation
+str(trainSet$Month) # Month is chr vector
+month_order<-unique(trainSet$Month) # this will be used to generate factor levels when month is converted to a fct (thankfully no further reordering is required)
+trainSet$Month<-factor(trainSet$Month, levels=month_order) #Month is now a Factor
 # Examining rain by locations
-knitr::kable(trainSet_dv%>%group_by(Location)%>%
-               summarise(mean_rainfall=mean(Rainfall),oneRainDayinDays=1/mean(RainTomorrow))%>%
-               select(Location,mean_rainfall,oneRainDayinDays))
 
-trainSet_dv%>%group_by(Location)%>%
-  summarise(Annual_rainfall=365*mean(Rainfall),Number_rain_days=365*mean(RainTomorrow))%>%
-  select(Location,Annual_rainfall,Number_rain_days)%>%
-  ggplot(aes(x=Number_rain_days,y=Annual_rainfall,label=Location))+geom_point()+geom_text_repel()
+# knitr::kable(trainSet%>%group_by(Location)%>%
+#                summarise(mean_rainfall=mean(Rainfall),oneRainDayinDays=1/mean(ifelse(RainTomorrow=='No',0,1)))%>%
+#                select(Location,mean_rainfall,oneRainDayinDays))
 
-trainSet_dv%>%group_by(Location,Month)%>%
-  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(RainTomorrow))%>%
-  select(Location,Month,Daily_rainfall,Number_rain_days)%>%
-  ggplot(aes(x=Number_rain_days,y=Daily_rainfall,label=abbreviate(Location,2)))+geom_point()+geom_text_repel()+facet_wrap(~Month)
-
-trainSet_dv%>%group_by(Location,Month)%>%
+trainSet%>%group_by(Location,Month)%>%
   summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(ifelse(RainToday=='No',0,1)))%>%
   select(Location,Month,Daily_rainfall,Number_rain_days)%>%
   ggplot(aes(x=Month,y=Number_rain_days,size=Daily_rainfall))+geom_point()+facet_wrap(~Location)+
   labs(y='Mean Number of Rain Days',size='Mean Daily\nRainfall in mm')+
   theme_bw()+theme(axis.text.x = element_text(angle=90),plot.margin = margin(2,2,2,2))
 
-summary(trainSet_dv)
+# above figure would not show well in paper, so two contrasting rainfall patterns will be show see fig_seasonal
+
+trainSet%>%group_by(Location,Month)%>%
+  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(ifelse(RainToday=='No',0,1)))%>%
+  select(Location,Month,Daily_rainfall,Number_rain_days)%>%filter(Location=='Darwin'|Location=='Portland')%>%
+  ggplot(aes(x=Month,y=Number_rain_days,size=Daily_rainfall))+geom_point()+facet_wrap(~Location)+
+  labs(y='Mean Number of Rain Days',size='Mean Daily Rainfall in mm')+
+  theme_bw()+theme(axis.text.x = element_text(angle=90),legend.position = 'bottom')
+ggsave('figs/seasonal.pdf')
+
+save.image('rda/datasets_wip.rda')
+summary(trainSet)
 summary(testSet)
 
-cor.test(ifelse(trainSet$RainToday=='No',0,1),trainSet$RainTomorrow)
-cor.test(trainSet$Humidity3pm,trainSet$RainTomorrow)
+summarytools::ctable(trainSet$RainToday,trainSet$RainTomorrow)  # RainToday seems to have some explanatory power on RainTomorrow
 
-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Humidity3pm))+geom_boxplot()+
-  labs(x='RainTomorrow')+theme_bw()
-
-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Cloud3pm))+geom_boxplot()+
-  labs(x='RainTomorrow')+theme_bw()
-
-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Pressure3pm))+geom_boxplot()+
-  labs(x='RainTomorrow')+theme_bw()
-
-# Not So Well Separated
-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),WindSpeed9am))+geom_boxplot()+
-  labs(x='RainTomorrow')+theme_bw()
-
-trainSet_dv%>%ggplot(aes(ifelse(RainTomorrow==0,'No','Yes'),Temp9am))+geom_boxplot()+
-  labs(x='RainTomorrow')+theme_bw()
-
-numVars
-
-plot_box<-function(x){print(trainSet_dv%>%ggplot(aes(x=ifelse(RainTomorrow==0,'No','Yes')))+geom_boxplot(aes_string(y=x))+
+# Generating Boxplots to show separatedness for all numeric variables
+plot_box<-function(x){print(trainSet%>%ggplot(aes(x=RainTomorrow))+geom_boxplot(aes_string(y=x))+
     labs(x='RainTomorrow')+theme_bw())}
-# plot_box('Sunshine')
+numVars<-names(trainSet)[num_col(trainSet,names(trainSet))] # Generate character vector names of numeric variable in trainSet
 sapply(numVars,plot_box)
 
 ksWrapper<-function(x){
-z1<-as.matrix(trainSet[trainSet$RainTomorrow==0,x]) # will need to change to 'No' later
-z2<-as.matrix(trainSet[trainSet$RainTomorrow==1,x]) # # will need to change to 'Yes' later
+z1<-as.matrix(trainSet[trainSet$RainTomorrow=='No',x]) 
+z2<-as.matrix(trainSet[trainSet$RainTomorrow=='Yes',x]) 
 D<-ks.test(z1,z2)[1]
 p_val<-ks.test(z1,z2)[2]
 return(c(x,D,p_val))
 }
-# Code Already in report- start
+# Generate D statistic in ks.test to get relative measures of separatedness
 ksWrapper("MinTemp")
 ksWrapper("MinTemp")$statistic
-x<-matrix(unlist(sapply(numVars,ksWrapper),use.names = F),ncol=3,byrow=T)
-x<-as.data.frame(x)[,-3] #exclude pvalue
-names(x)<-c('NumericVariable','D')
-x$D<-round(as.numeric(as.character(x$D)),digits = 2)
-knitr::kable(x)
-# Code Already in report- end
-st_options('round.digits', 1)
-knitr::kable(ctable(trainSet_dv$Location,trainSet_dv$WindDir9am),digits = 1)
+ks<-matrix(unlist(sapply(numVars,ksWrapper),use.names = F),ncol=3,byrow=T)
+ks<-as.data.frame(ks)[,-3] #exclude pvalue, all p-values indicated statistically significant differences. 
+#This however is not important. What we need is D to establish cut-off values
+names(ks)<-c('NumericVariable','D')
+ks$D<-round(as.numeric(as.character(ks$D)),digits = 2)
 
-location<-levels(trainSet_dv$Location)
+# Generating charts of examples of well and not well separated features
+g1<-trainSet%>%ggplot(aes(RainTomorrow,Humidity3pm))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+g2<-trainSet%>%ggplot(aes(RainTomorrow,Cloud3pm))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+pdf('figs/wellsep.pdf',width = 7,height = 6)
+gridExtra::grid.arrange(g1,g2,nrow=1)
+dev.off()
+rm(list = c('g1','g2'))
+
+g1<-trainSet%>%ggplot(aes(RainTomorrow,WindSpeed9am))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+g2<-trainSet%>%ggplot(aes(RainTomorrow,Temp9am))+geom_boxplot()+
+  labs(x='RainTomorrow')+theme_bw()
+
+pdf('figs/notwellsep.pdf',width = 7, height = 6)
+gridExtra::grid.arrange(g1,g2, nrow=1)
+dev.off()
+rm(list = c('g1','g2'))
+
+# Normalizing trainSet and testSet ####
+preProcVals<-preProcess(trainSet[,numVars],method = c('center','scale'))
+trainSet[,numVars]=predict(preProcVals,trainSet[,numVars])
+testSet[,numVars]=predict(preProcVals,testSet[,numVars])
+
+save.image('rda/datasets_wip.rda')
+
+location<-levels(trainSet$Location)
 
 # To see conditional probabilites P(No_RainTomorrow/Dir) and P(Yes_RainTomorrow/Dir) for each local
-# substitute $WindDir3pm for $WindDir9am if you want to see these conditional probabilities with the 9am wind direction.
+
 for(l in location){
   print(l)
-  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,
-                             trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm, prop = 'c')[2]) # the Crosstab as proportions the 2nd table in the list 
-  print(knitr::kable(x,digits = 2))
+  suppressMessages(print(ctable(trainSet[trainSet$Location==l,]$RainTomorrow,
+                             trainSet[trainSet$Location==l,]$WindDir3pm, prop = 'c')[2],digits = 2)) # the Crosstab as proportions the 2nd table in the list 
+  #print.summary.table(x,digits = 2)
     cat("_________________________________________________\n")
 } 
 
 for(l in location){
   print(l)
-  x<-suppressMessages(ctable(ifelse(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow==0,'No','Yes'),
-                             trainSet_dv[trainSet_dv$Location==l,]$WindGustDir, prop = 'c')[2]) # the Crosstab as proportions the 2nd table in the list 
-  print(knitr::kable(x,digits = 2))
+  suppressMessages(print(ctable(trainSet[trainSet$Location==l,]$RainTomorrow,
+                                trainSet[trainSet$Location==l,]$WindDir9am, prop = 'c')[2],digits = 2)) # the Crosstab as proportions the 2nd table in the list 
+  #print.summary.table(x,digits = 2)
+  cat("_________________________________________________\n")
+}
+
+for(l in location){
+  print(l)
+  suppressMessages(print(ctable(trainSet[trainSet$Location==l,]$RainTomorrow,
+                                trainSet[trainSet$Location==l,]$WindGustDir, prop = 'c')[2],digits = 2)) # the Crosstab as proportions the 2nd table in the list 
+  print(knitr::kable(x))
   cat("_________________________________________________\n")
 } 
 
-x1<-ifelse(trainSet_dv[trainSet_dv$Location=="Cobar",]$RainTomorrow==0,'No','Yes')
-x2<- trainSet_dv[trainSet_dv$Location=="Cobar",]$WindGustDir
-x<-ctable(x1,x2, prop = 'c')[2] # the Crosstab as proportions the 2nd table in the list 
-kableExtra::kable_styling(knitr::kable(x,digits = 2,booktabs = TRUE,
-                                       caption = 'Conditional Probabilities No Rain Tomorrow vs. Rain Tomorrow Given WindGust Direction (Location = Cobar) ',
-                                       row.names = NA,col.names = NA),latex_options = "hold_position", full_width = T)
-
+#___________Run this Tomorrow___________________________
+# Creating vectors indicating whether wind is blowing from a direction 
+# where the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
 rainDir9am<-list()
 for(l in location){
-  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,
-                             trainSet_dv[trainSet_dv$Location==l,]$WindDir9am)[2])
+  x<-suppressMessages(ctable(trainSet[trainSet$Location==l,]$RainTomorrow,
+                             trainSet[trainSet$Location==l,]$WindDir9am)[2]) # proportion is displayed for row (default)
+  # cell values now represents P(Dir/RainTom = Y) or P(Dir/RainTom = N), putting this way makes coding easier.
   x<-as.data.frame(x)
   x<-as.data.frame(t(x))
   x$dir<-row.names(x)
   dir<-strsplit(x$dir,'[.]')
   dir<-as.data.frame(dir)
   x$dir<-t(dir)[,2]
-  x<-x[row.names(x)!='proportions.Total',]
-  x$rainDir<-ifelse(x$Yes>=x$Total,1,0) # indicate directions the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
+  x<-x[row.names(x)!='proportions.Total',] # drops the proportions.Totals row
+  x$rainDir<-ifelse(x$Yes>=x$Total,1,0) # indicate directions where the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow),
+                                        # see 'explanation.pdf' for more
   rainDir9am[[l]]<-x[x$rainDir==1,"dir"] # returns these directions to character vector bearing the location name in the rainDir9am list
 }
 
 rainDir3pm<-list()
 for(l in location){
-  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,
-                             trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm)[2])
+  x<-suppressMessages(ctable(trainSet[trainSet$Location==l,]$RainTomorrow,
+                             trainSet[trainSet$Location==l,]$WindDir3pm)[2])
   x<-as.data.frame(x)
   x<-as.data.frame(t(x))
   x$dir<-row.names(x)
@@ -263,8 +291,8 @@ for(l in location){
 
 rainDirGust<-list()
 for(l in location){
-  x<-suppressMessages(ctable(trainSet_dv[trainSet_dv$Location==l,]$RainTomorrow,
-                             trainSet_dv[trainSet_dv$Location==l,]$WindGustDir)[2])
+  x<-suppressMessages(ctable(trainSet[trainSet$Location==l,]$RainTomorrow,
+                             trainSet[trainSet$Location==l,]$WindGustDir)[2])
   x<-as.data.frame(x)
   x<-as.data.frame(t(x))
   x$dir<-row.names(x)
@@ -278,14 +306,17 @@ for(l in location){
 
 # Creating Dummy Variables indicating whether wind is blowing from a direction 
 # where the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
-trainSet_dv$rainDir9am<-NA
-trainSet_dv$rainDir3pm<-NA
-trainSet_dv$rainDirGust<-NA
+trainSet$rainDir9am<-NA
+trainSet$rainDir3pm<-NA
+trainSet$rainDirGust<-NA
 for (l in location) {
- trainSet_dv[trainSet_dv$Location==l,"rainDir9am"]<-ifelse(trainSet_dv[trainSet_dv$Location==l,]$WindDir9am%in%rainDir9am[[l]],1,0)
- trainSet_dv[trainSet_dv$Location==l,"rainDir3pm"]<-ifelse(trainSet_dv[trainSet_dv$Location==l,]$WindDir3pm%in%rainDir3pm[[l]],1,0)
- trainSet_dv[trainSet_dv$Location==l,"rainDirGust"]<-ifelse(trainSet_dv[trainSet_dv$Location==l,]$WindGustDir%in%rainDirGust[[l]],1,0)
+ trainSet[trainSet$Location==l,"rainDir9am"]<-ifelse(trainSet[trainSet$Location==l,]$WindDir9am%in%rainDir9am[[l]],'Yes','No')
+ trainSet[trainSet$Location==l,"rainDir3pm"]<-ifelse(trainSet[trainSet$Location==l,]$WindDir3pm%in%rainDir3pm[[l]],'Yes','No')
+ trainSet[trainSet$Location==l,"rainDirGust"]<-ifelse(trainSet[trainSet$Location==l,]$WindGustDir%in%rainDirGust[[l]],'Yes','No')
 }
+#___________________End Run this Tomorrow_________
+
+# (Important) need to make rainDir_ factor variables
 
 knitr::kable(ctable(trainSet_dv$rainDirGust,trainSet_dv$RainTomorrow,omit.headings = F))
 # library(gridExtra)
@@ -394,9 +425,9 @@ varNames<-names(trainSet)
 numInd<-num_col(testSet,varNames[-23]) #  logical vector indicating position of numeric and non-numeric variables (label excluded)
 numVars<-varNames[numInd] # extracting the names of numeric features 
 # numVars
-preProcVals<-preProcess(trainSet[,numVars],method = c('center','scale'))
-trainSet[,numVars]=predict(preProcVals,trainSet[,numVars])
-testSet[,numVars]=predict(preProcVals,testSet[,numVars])
+# preProcVals<-preProcess(trainSet[,numVars],method = c('center','scale'))
+# trainSet[,numVars]=predict(preProcVals,trainSet[,numVars])
+# testSet[,numVars]=predict(preProcVals,testSet[,numVars])
 
 class(trainSet$RainTomorrow)
 cluster4joining<-clustmat%>%mutate(locMon=paste(Location,Month, sep = '_'))%>%select(locMon,cluster)
@@ -420,11 +451,7 @@ summary(logistic_mod)
 
 # Model Selection and Nested CV
 
-# bringing label back to a factor
-# trainSet_dv$RainTomorrow<-ifelse(trainSet_dv$RainTomorrow==1,'Yes','No')
-# trainSet_dv$RainTomorrow<-factor(trainSet_dv$RainTomorrow,levels = c('Yes','No'))
-# testSet$RainTomorrow<-ifelse(testSet$RainTomorrow==1,'Yes','No')
-# testSet$RainTomorrow<-factor(testSet$RainTomorrow,levels = c('Yes','No'))
+
 
 # Model Selection and Nested CV (ROC) ####
 
