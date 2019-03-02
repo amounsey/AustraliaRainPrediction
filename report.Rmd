@@ -13,7 +13,8 @@ suppressMessages(library(caret))
 suppressMessages(library(png))
 suppressMessages(library(summarytools))
 suppressMessages(library(factoextra))
-
+suppressMessages(library(knitr))
+suppressMessages(library(kableExtra))
 load('rda/datasets.rda')
 gc() 
 ```
@@ -62,8 +63,7 @@ Having cleaned the **weather** dataset, it was then randomly split in an 8:2 rat
 In thinking of constructing a rain prediction model for Australia, rudimentary inquiry into rainfall partners across the continent was conducted. Figure \@ref(fig:map) represents an insightfully summary of rainfall pattern across the country. The figure shows progressively lower number of raindays as on moves inland from the northern, eastern and southern coast, with interior and western regions having very few rain days.  
 
 ```{r map,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:map}Rain Days across Australia \\ Source: <http://www.bom.gov.au/jsp/ncc/climate_averages/raindays/index.jsp>" }
-aussie_map<-readPNG('figs/rain1mman.png')
-grid::grid.raster(aussie_map)
+knitr::include_graphics('figs/aussiemap.pdf')
 ```
 
 Another important weather feature is the seasonal patterns in rainfall. Figure \@ref(fig:seasonal) illustrates two readily observed seasonal rain patterns. In some regions like Darwin there is a Summer (Southern Hemisphere) Monsoon - where over period December to March there is significantly increased rainfall, both in terms of volume and the number of rain days in the month. While in areas like Portland there is a Winter Monsoon starting around May and ending in September.
@@ -71,46 +71,26 @@ Another important weather feature is the seasonal patterns in rainfall. Figure \
 Figures \@ref(fig:map) and \@ref(fig:seasonal) points to the possibility that combinations of location and months may be jointly predictive of the label- **RainTomorrow**. For example Darwin in the month of January (Darwin-January) any given day has typically has a $\frac{20}{30}$ chance of rain where as in Portland-January the chance is typically $\frac{5}{30}$. The contrast is however reversed if Portland-July and Darwin-July are examined. This phenomenon referenced here as *Location-Month Effect* will be returned to in the next sub-section.
 
 ```{r seasonal,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:seaonal}Monthly Rainfall Patterns by Location"}
-trainSet_dv%>%group_by(Location,Month)%>%
-  summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(ifelse(RainToday=='No',0,1)))%>%
-  select(Location,Month,Daily_rainfall,Number_rain_days)%>%filter(Location=='Darwin'|Location=='Portland')%>%
-  ggplot(aes(x=Month,y=Number_rain_days,size=Daily_rainfall))+geom_point()+facet_wrap(~Location)+
-  labs(y='Mean Number of Rain Days',size='Mean Daily Rainfall in mm')+
-  theme_bw()+theme(axis.text.x = element_text(angle=90),legend.position = 'bottom')
+knitr::include_graphics('figs/seasonal.pdf')
 ```
 
 ##Feature Selection and Engineering
 Each numeric *feature* in the **trainSet** was examine to determine the extent to which it separated along *label* values - that is the degree to which the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'Yes' is different from the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'No'. This examination was conducted at two ways: (1) using *box-plots* and (2) using the * Kolmogorov–Smirnov test (KS test)*. Some *features* are 'well separated' as can be observed in figure \@ref(fig:wellsep). This figure shows that the distribution of **Humidity3pm** conditioned on **RainTomorrow**= 'Yes' is shifted to the right (that it typically contains higher values) of that which is conditioned on **RainTomorrow**= 'No'. **Clouds3pm** is similarly well separated. 
 
 ```{r wellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:wellsep}Examples of Some Well Separated Cases"}
-g1<-trainSet_dv%>%ggplot(aes(RainTomorrow,Humidity3pm))+geom_boxplot()+
-  labs(x='RainTomorrow')+theme_bw()
-
-g2<-trainSet_dv%>%ggplot(aes(RainTomorrow,Cloud3pm))+geom_boxplot()+
-  labs(x='RainTomorrow')+theme_bw()
-gridExtra::grid.arrange(g1,g2, nrow=1)
+knitr::include_graphics('figs/wellsep.pdf')
 ```
 
 Some examples of 'not well separated' features are illustrated in figure \@ref(fig:notwellsep). In figure \@ref(fig:notwellsep) it is easily observed that the degree of distributional overlap is high across case conditioned on the outcome of the *Label* -**RainTomorrow**.
 
 ```{r notwellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:notwellsep}Examples of Some **NOT** Well Separated Cases"}
-g1<-trainSet_dv%>%ggplot(aes(RainTomorrow,WindSpeed9am))+geom_boxplot()+
-  labs(x='RainTomorrow')+theme_bw()
-
-g2<-trainSet_dv%>%ggplot(aes(RainTomorrow,Temp9am))+geom_boxplot()+
-  labs(x='RainTomorrow')+theme_bw()
-gridExtra::grid.arrange(g1,g2, nrow=1)
+knitr::include_graphics('figs/notwellsep.pdf')
 ```
 
 The test statistic - *D* for the *KS test* was used to determine the relative strength (degree) of 'separatedness' as well as to determine a cut-off point for what should be considered as reasonably 'separated' *feature*. The cut-off point choosen was $D=0.1$. *Features* with $D\geq 0.1$ were considered 'well-separated' and were selected as *features* to be used in constructing the models.
 
 ```{r sepNumvar,echo=FALSE,warning=FALSE}
-x<-matrix(unlist(sapply(numVars,ksWrapper),use.names = F),ncol=3,byrow=T)
-x<-as.data.frame(x)[,-3]
-names(x)<-c('NumericVariable','D')
-x$D<-round(as.numeric(as.character(x$D)),digits = 2)
-
-kableExtra::kable_styling(knitr::kable(x,booktabs = TRUE,
+kableExtra::kable_styling(knitr::kable(ks,booktabs = TRUE,
   caption = 'Results of Kolmogorov-Smirnov test on Conditional Distributions (RainTomorrow = No vs. RainTomorrow = Yes)',
   row.names = NA,col.names = NA),latex_options = "hold_position")
 ```
@@ -126,8 +106,8 @@ gridExtra::grid.arrange(g1,g2,g3, ncol=1)
 
 
 ```{r locMon1,echo=FALSE,warning=FALSE}
-clustmat<-trainSet_dv%>%group_by(Location,Month)%>%
-  summarise(rainDays=30.5*mean(RainTomorrow),sd_rainDays=sd(RainTomorrow))%>%
+clustmat<-trainSet%>%group_by(Location,Month)%>%
+  summarise(rainDays=30.5*mean(ifelse(RainToday=='No',0,1)),sd_rainDays=sd(ifelse(RainToday=='No',0,1)))%>%
   mutate(label=paste(Location,Month, sep = '_'))%>%ungroup()%>%
   select(Location,Month)%>%mutate(cluster=clust)
 
@@ -143,8 +123,8 @@ fviz_cluster(list(data=check,cluster=clust), geom = 'point',
 ```
 
 ```{r winddir,echo=FALSE,warning=FALSE,message=FALSE}
-x1<-trainSet_dv[trainSet_dv$Location=="Cobar",]$RainTomorrow
-x2<- trainSet_dv[trainSet_dv$Location=="Cobar",]$WindGustDir
+x1<-trainSet[trainSet$Location=="Cobar",]$RainTomorrow
+x2<- trainSet[trainSet$Location=="Cobar",]$WindGustDir
 x<-ctable(x1,x2, prop = 'c')[2] # the Crosstab as proportions the 2nd table in the list 
 kableExtra::kable_styling(knitr::kable(x,digits = 2,booktabs = TRUE,
   caption = 'Conditional Probabilities No Rain Tomorrow vs. Rain Tomorrow Given WindGust Direction (Location = Cobar) ',
@@ -153,28 +133,19 @@ kableExtra::kable_styling(knitr::kable(x,digits = 2,booktabs = TRUE,
 ```
 
 ```{r raindir1, echo=FALSE,warning=FALSE,message=FALSE }
-x1<-as.data.frame(ctable(trainSet_dv$rainDirGust,trainSet_dv$RainTomorrow,omit.headings = F)[2],
-                  row.names = c('rainDirGust=0','rainDirGust=1','Total'))
-names(x1)<-c('RainTomorrow=0','RainTomorrow=1','Total')
-x2<-as.data.frame(ctable(trainSet_dv$rainDir9am,trainSet_dv$RainTomorrow,omit.headings = F)[2],
-                  row.names = c('rainDir9am=0','rainDir9am=1','Total'))
-names(x2)<-c('RainTomorrow=0','RainTomorrow=1','Total')
-x3<-as.data.frame(ctable(trainSet_dv$rainDir3pm,trainSet_dv$RainTomorrow,omit.headings = F)[2],
-                  row.names = c('rainDir3pm=0','rainDir3pm=1','Total'))
-names(x3)<-c('RainTomorrow=0','RainTomorrow=1','Total')
-
-kableExtra::kable_styling(knitr::kable(x1,digits = 2,booktabs=T, caption = "Probabilites of Rain Tomorrow Conditioned on rainDir9am"),latex_options = 'hold_position')
-
+x<-kable(ctable(trainSet$rainDir9am,trainSet$RainTomorrow,omit.headings = F)[2],digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDir9am",'latex')
+x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c(" ","RainTomorrow"=3))%>%group_rows('rainDir9am',start_row = 1,end_row = 2,colnum = 1)
 ```
 
 ```{r raindir2, echo=FALSE,warning=FALSE,message=FALSE }
-kableExtra::kable_styling(knitr::kable(x2,digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDir3pm"),latex_options = 'hold_position')
+x<-kable(ctable(trainSet$rainDir3pm,trainSet$RainTomorrow,omit.headings = F)[2],digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDir3pm",'latex')
+x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c(" ","RainTomorrow"=3))%>%group_rows('rainDir3pm',start_row = 1,end_row = 2,colnum = 1)
 
 ```
 
 ```{r raindir3, echo=FALSE,warning=FALSE,message=FALSE }
-kableExtra::kable_styling(knitr::kable(x3,digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDirGust"),latex_options = 'hold_position')
-
+x<-kable(ctable(trainSet$rainDirGust,trainSet$RainTomorrow,omit.headings = F)[2],digits = 2,booktabs=T, caption = "Probabilites of Rain Tomorrow Conditioned on rainDirGust",'latex')
+x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c(" ","RainTomorrow"=3))%>%group_rows('rainDirGust',start_row = 1,end_row = 2,colnum = 1)
 ```
 
 ## Models and Estimation Techniques

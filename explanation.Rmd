@@ -1,0 +1,44 @@
+---
+title: "explanation"
+author: "Allister Mounsey"
+date: "27 February 2019"
+output: bookdown::pdf_document2
+---
+Let:
+
+> D = WindDir at 9am/3pm or whenever that is relevant
+
+> R = There is Rain Tomorrow
+
+Then:
+\begin{equation}
+P(R/D)=\frac{P(D/R).P(R)}{P(D)}
+(\#eq:eq1)
+\end{equation}
+
+We seek those instances where:
+\begin{equation}
+P(R/D)\geq P(R)
+(\#eq:eq2)
+\end{equation}
+
+Substituting for $P(R/D)$ in \@ref(eq:eq2) from \@ref(eq:eq1), we get:
+\begin{equation}
+\frac{P(D/R).P(R)}{P(D)}\geq P(R)
+(\#eq:eq3)
+\end{equation}
+
+Dividing \@ref(eq:eq3) thru out by $P(R)$ we get:
+\begin{equation}
+\frac{P(D/R)}{P(D)}\geq 1
+(\#eq:eq4)
+\end{equation}
+
+Multiplying \@ref(eq:eq4) thru by $P(D)$ we get:
+\begin{equation}
+P(D/R)\geq P(D)
+(\#eq:eq5)
+\end{equation}
+
+That is \@ref(eq:eq5) is an equivalent of stating the required conditions \@ref(eq:eq2). QED.
+ 

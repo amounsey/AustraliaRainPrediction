@@ -224,8 +224,7 @@ preProcVals<-preProcess(trainSet[,numVars],method = c('center','scale'))
 trainSet[,numVars]=predict(preProcVals,trainSet[,numVars])
 testSet[,numVars]=predict(preProcVals,testSet[,numVars])
 
-save.image('rda/datasets_wip.rda')
-
+# Feature Engineering ####
 location<-levels(trainSet$Location)
 
 # To see conditional probabilites P(No_RainTomorrow/Dir) and P(Yes_RainTomorrow/Dir) for each local
@@ -254,7 +253,6 @@ for(l in location){
   cat("_________________________________________________\n")
 } 
 
-#___________Run this Tomorrow___________________________
 # Creating vectors indicating whether wind is blowing from a direction 
 # where the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
 rainDir9am<-list()
@@ -314,54 +312,20 @@ for (l in location) {
  trainSet[trainSet$Location==l,"rainDir3pm"]<-ifelse(trainSet[trainSet$Location==l,]$WindDir3pm%in%rainDir3pm[[l]],'Yes','No')
  trainSet[trainSet$Location==l,"rainDirGust"]<-ifelse(trainSet[trainSet$Location==l,]$WindGustDir%in%rainDirGust[[l]],'Yes','No')
 }
-#___________________End Run this Tomorrow_________
 
-# (Important) need to make rainDir_ factor variables
+summary(trainSet)
+trainSet<-trainSet%>%mutate_at(vars(rainDir9am:rainDirGust),funs(as.factor(.))) # converting rainDir9am:rainDirGust to factor variables
+summary(trainSet)
 
-knitr::kable(ctable(trainSet_dv$rainDirGust,trainSet_dv$RainTomorrow,omit.headings = F))
-# library(gridExtra)
-# rowx<-c('rainDir=0','rainDir=1')
-# x1<-as.data.frame(ctable(trainSet_dv$rainDirGust,trainSet_dv$RainTomorrow,omit.headings = F)[2],
-#                   row.names = c('rainDirGust=0','rainDirGust=1','Total'))
-# names(x1)<-c('Rain\nTomorrow=0','Rain\nTomorrow=1','Total')
-# x2<-as.data.frame(ctable(trainSet_dv$rainDir9am,trainSet_dv$RainTomorrow,omit.headings = F)[2],
-#                   row.names = c('rainDir9am=0','rainDir9am=1','Total'))
-# names(x2)<-c('Rain\nTomorrow=0','Rain\nTomorrow=1','Total')
-# x3<-as.data.frame(ctable(trainSet_dv$rainDir3pm,trainSet_dv$RainTomorrow,omit.headings = F)[2],
-#                   row.names = c('rainDir3pm=0','rainDir3pm=1','Total'))
-# names(x3)<-c('Rain\nTomorrow=0','Rain\nTomorrow=1','Total')
-
-print(knitr::kable(list(x1,x2,x3),digits = 2))
-
-knitr::kable(grid.arrange(tableGrob(x1),tableGrob(x2),tableGrob(x3), nrow=1),digits = 2)
-# trainSet_dv[trainSet_dv$Location=='AliceSprings',"rainDir9am"]<-ifelse(
-#   trainSet_dv[trainSet_dv$Location=='AliceSprings',]$WindDir9am%in%rainDir9am[['AliceSprings']],1,0)
-  
-
-rainDir9am[['AliceSprings']]
-summary(trainSet_dv)
-head(trainSet_dv[(trainSet_dv$Location=='AliceSprings')&(trainSet_dv$WindDir9am%in%rainDir9am[['AliceSprings']]),c("Location","WindDir9am","rainDir9am")])
-head(trainSet_dv[(trainSet_dv$Location=='AliceSprings')&(!trainSet_dv$WindDir9am%in%rainDir9am[['AliceSprings']]),c("Location","WindDir9am","rainDir9am")])
-
-x1<-as.data.frame(x[1])
-x2<-as.data.frame(t(x1))
-x2$dir<-row.names(x2)
-dir<-strsplit(x2$dir,'[.]')
-dir<-as.data.frame(dir)
-x2$dir<-t(dir)[,2]
-x2<-x2[row.names(x2)!='proportions.Total',]
-x2$rainDir<-ifelse(x2$Yes>=x2$Total,1,0)
-rainDir<-x2[x2$rainDir==1,"dir"]
-
-
-# x <- c(as = "asfef", qu = "qwerty", "yuiop[", "b", "stuff.blah.yech")
-# split x on the letter e
-# xtest<-strsplit(x, "e")
-
-labelFinder(sunsh)
-
-check<-trainSet_dv%>%group_by(Location,Month)%>%
-  summarise(rainDays=30.5*mean(RainTomorrow),sd_rainDays=sd(RainTomorrow))%>%
+rm(x)
+save.image('rda/datasets_wip.rda')
+# Probability of RainTomorrow given rainDir
+ctable(trainSet$rainDir9am,trainSet$RainTomorrow,omit.headings = F)
+ctable(trainSet$rainDir3pm,trainSet$RainTomorrow,omit.headings = F)
+ctable(trainSet$rainDirGust,trainSet$RainTomorrow,omit.headings = F)
+# Location_month clusters
+check<-trainSet%>%group_by(Location,Month)%>%
+  summarise(rainDays=30.5*mean(ifelse(RainToday=='No',0,1)),sd_rainDays=sd(ifelse(RainToday=='No',0,1)))%>%
   mutate(label=paste(Location,Month, sep = '_'))%>%ungroup()%>%
   select(label,rainDays,sd_rainDays)
 check<-as.data.frame(check)
@@ -370,23 +334,23 @@ check$label<-NULL
 check1<-check
 check<-scale(check)
 
-d<-dist(check)
-hc1<-hclust(d)
-plot(hc1)
-rect.hclust(hc1,k=4)
+# d<-dist(check)
+# hc1<-hclust(d)
+# plot(hc1)
+# rect.hclust(hc1,k=4)
 
 hc<-agnes(check)
-hc$ac
-pltree(hc, main='Dendrogram of Location_Month')
+hc$ac # agglomerative Coefficient of close to 1 - strong clustering structure
+# pltree(hc, main='Dendrogram of Location_Month')
 fviz_nbclust(check,FUN=hcut,method = 'wss')
 fviz_nbclust(check,FUN=hcut,method = 'silhouette')
 gap_stat<-clusGap(check,FUN=hcut,nstart = 25, K.max=10, B=50)
 fviz_gap_stat(gap_stat)
 
-clust<-cutree(as.hclust(hc),k=4)
+clust<-cutree(as.hclust(hc),k=6)
 check1$clust<-clust
-clustmat<-trainSet_dv%>%group_by(Location,Month)%>%
-  summarise(rainDays=30.5*mean(RainTomorrow),sd_rainDays=sd(RainTomorrow))%>%
+clustmat<-trainSet%>%group_by(Location,Month)%>%
+  summarise(rainDays=30.5*mean(ifelse(RainToday=='No',0,1)),sd_rainDays=sd(ifelse(RainToday=='No',0,1)))%>%
   mutate(label=paste(Location,Month, sep = '_'))%>%ungroup()%>%
   select(Location,Month)%>%mutate(cluster=clust)
 
@@ -397,97 +361,59 @@ fviz_cluster(list(data=check,cluster=clust), geom = 'point',
              xlab = 'Rain Days (Standardized)',ylab = 'Variability in Rain Days (Standardized)',
              main = NULL,ggtheme = theme_bw())
 
-# useful lines of code adapted from <https://uc-r.github.io/hc_clustering> -Begin
-# methods to assess
-m <- c( "average", "single", "complete", "ward")
-names(m) <- c( "average", "single", "complete", "ward")
 
-# function to compute coefficient
-ac <- function(x) {
-  agnes(check, method = x)$ac
-}
+cluster4joining<-clustmat%>%mutate(locMon=paste(Location,Month, sep = '_'))%>%select(locMon,cluster) 
 
-map_dbl(m, ac)
-# useful lines of code from <https://uc-r.github.io/hc_clustering> -End
+trainSet<-trainSet%>%mutate(locMon=paste(Location,Month, sep = '_')) # variable locMon created to facilitate joining
+trainSet<-trainSet%>%left_join(cluster4joining) # joining by locMon
+trainSet$cluster<-as.factor(trainSet$cluster) # making cluster a factor variable
 
+summary(trainSet)
 
-# %>%
-#   summarise(Number_rain_days=which.max(Number_rain_days),Month=Month[which.max(Number_rain_days)])%>%
-#   ggplot(aes(x=Location,y=Number_rain_days,fill=Month))+geom_col()+
-#   theme_bw()+theme(axis.text.x = element_text(angle=90))
-
-which.max(check$Number_rain_days)
-
-# Machine Learning ####
-# Scaling numeric features
-varNames<-names(trainSet)
-# varNames
-numInd<-num_col(testSet,varNames[-23]) #  logical vector indicating position of numeric and non-numeric variables (label excluded)
-numVars<-varNames[numInd] # extracting the names of numeric features 
-# numVars
-# preProcVals<-preProcess(trainSet[,numVars],method = c('center','scale'))
-# trainSet[,numVars]=predict(preProcVals,trainSet[,numVars])
-# testSet[,numVars]=predict(preProcVals,testSet[,numVars])
-
-class(trainSet$RainTomorrow)
-cluster4joining<-clustmat%>%mutate(locMon=paste(Location,Month, sep = '_'))%>%select(locMon,cluster)
-
-trainSet_dv<-trainSet_dv%>%mutate(locMon=paste(Location,Month, sep = '_'))
-trainSet_dv<-trainSet_dv%>%left_join(cluster4joining)
-trainSet_dv$cluster<-as.factor(trainSet_dv$cluster)
-trainSet_dv$rainDir3pm<-as.factor(trainSet_dv$rainDir3pm)
-trainSet_dv$rainDir9am<-as.factor(trainSet_dv$rainDir9am)
-trainSet_dv$rainDirGust<-as.factor(trainSet_dv$rainDirGust)
-
-names(trainSet_dv)
-summary(trainSet_dv)
-summary(testSet)
-#  Logistic Model
-set.seed(2179)
-logistic_mod<-glm(RainTomorrow~cluster+RainToday+MaxTemp+Rainfall+Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+
-                    Pressure9am+Pressure3pm+Cloud9am+Cloud3pm+Temp3pm, family = binomial,data = trainSet_dv)
-
-summary(logistic_mod)
-
-# Model Selection and Nested CV
-
-
-
-# Model Selection and Nested CV (ROC) ####
+# Machine Learning - Logistic Model ####
+freq(trainSet$RainTomorrow) # establishing the weights to be used
+# Model Selection and Nested CV (ROC) 
 
 # Inner Loop for ROC 
 weights<-ifelse(trainSet$RainTomorrow=='Yes',0.78,0.22) # to balance by reversing sample proportion
 
-fitControl<-trainControl(method = 'cv',
+fitControl_logis<-trainControl(method = 'cv',
                          number = 10,
                          classProbs = T,
                          summaryFunction = twoClassSummary)
 set.seed(2376)
-cv_mod_roc<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
+logis_cv<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
                     Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
                     Cloud9am+Cloud3pm+Temp3pm,
-                  data = trainSet_dv,
+                  data = trainSet,
                   method ='glmnet',
                   weights = weights,
                   metric='ROC',
-                  trControl=fitControl)
+                  trControl=fitControl_logis)
 
-cv_mod_roc
-var_imp_logistics<-varImp(cv_mod_roc)
+logis_cv
+var_imp_logistics<-varImp(logis_cv)
 print(var_imp_logistics)
 plot(var_imp_logistics)
 
+# using a varImp cut-off of 3  Temp3pm, Rainfall, Humidity9am & Evaporation are drop
+# The ROC of the reduced model is compared to ROC of the optimal model from logis_cv 
 set.seed(2376)
-cv_mod_roc_reduced<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
-                    Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
-                    Cloud9am+Cloud3pm,
-                  data = trainSet_dv,
+logis_cv_reduced<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
+                          Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
+                          Cloud9am+Cloud3pm,
+                  data = trainSet,
                   method ='glmnet',
                   weights = weights,
                   metric='ROC',
-                  trControl=fitControl)
+                  trControl=fitControl_logis)
 
-cv_mod_roc_reduced
+logis_cv_reduced
+# Optimal model from logis_cv_model has similar hyper-parameters and model performance as logis_cv
+# The reduced model specification is therefore favoured.
+rm(logis_cv)
+save.image('rda/datasets_wip.rda')
+#*************************************************Mar 02***********************************************
 #  Outer Loop (ROC) 
 ## Set the hyperparameter grid to the optimal values from the inside loop
 paramGrid_logistic <- expand.grid(alpha = c(cv_mod_roc_reduced$bestTune$alpha),
@@ -579,61 +505,6 @@ summary(testSet1)
 
 knitr::kable(print_metrics(cv_mod_outer))
 cv_mod_roc$results[,1:3]
-
-# Model Selection and Nested CV (Recall) ####
-# Inner Loop for Recall 
-weights<-ifelse(trainSet$RainTomorrow=='Yes',0.78,0.22) # to balance by reversing sample proportion
-fitControl<-trainControl(method = 'cv',
-                         number = 10,
-                         classProbs = T,
-                         summaryFunction = prSummary)
-
-set.seed(2376)
-cv_mod_recall<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+MaxTemp+RainToday+Rainfall+
-                       Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
-                       Cloud9am+Cloud3pm+Temp3pm,
-                  data = trainSet_dv,
-                  method ='glmnet',
-                  weights = weights,
-                  metric='Recall',
-                  trControl=fitControl)
-
-cv_mod_recall
-
-#  Outer Loop (Recall)
-## Set the hyperparameter grid to the optimal values from the inside loop
-paramGrid <- expand.grid(alpha = c(cv_mod_recall$bestTune$alpha),
-                         lambda = c(cv_mod_recall$bestTune$lambda))
-
-fitControl = trainControl(method = 'cv',
-                          number = 10,
-                          returnResamp="all",
-                          savePredictions = TRUE,
-                          classProbs = TRUE,
-                          summaryFunction = prSummary)
-
-set.seed(4789)
-cv_mod_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+MaxTemp+RainToday+Rainfall+
-                      Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
-                      Cloud9am+Cloud3pm+Temp3pm,
-                    data = trainSet_dv,
-                    method ='glmnet',
-                    weights = weights,
-                    tuneGrid=paramGrid,
-                    metric='Recall',
-                    trControl=fitControl)
-
-print_metrics = function(mod){
-  means = c(apply(mod$resample[,1:3], 2, mean), alpha = mod$resample[1,4], 
-            lambda = mod$resample[1,5], Resample = 'Mean')
-  stds = c(apply(mod$resample[,1:3], 2, sd), alpha = mod$resample[1,4], 
-           lambda = mod$resample[1,5], Resample = 'STD')
-  out = rbind(mod$resample, means, stds)
-  out[,1:3] = lapply(out[,1:3], function(x) round(as.numeric(x), 3))
-  out
-}
-print_metrics(cv_mod_outer)
-
 
 
 # AdaBoost (Adaptive Boosting) ####
