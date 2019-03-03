@@ -451,11 +451,11 @@ print_metrics_logistic(logis_cv_outer)
 
 plot.roc(logis_cv_outer$pred$obs,logis_cv_outer$pred$Yes, print.thres=T) # Plot expected ROC with threshold and Spec, Sens 
 
-knitr::kable(print_metrics(logis_cv_outer))
+#knitr::kable(print_metrics(logis_cv_outer))
 logis_cv_outer$results
+rm(logis_cv_reduced)
 
-
-# AdaBoost (Adaptive Boosting) ####
+# Machine Learning - AdaBoost (Adaptive Boosting) ####
 
 
 fitControl_adaboost <- trainControl(method = "cv",
@@ -475,9 +475,10 @@ adaboost_cv<- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainT
                           trControl = fitControl_adaboost, 
                           verbose = FALSE,
                           metric="ROC")
-print(adaboost_cv)
+adaboost_cv
 
 var_imp_adaboost = varImp(adaboost_cv)
+bestTune_adaboost_full<-adaboost_cv$bestTune
 print(var_imp_adaboost)
 plot(var_imp_adaboost)
 
@@ -493,7 +494,8 @@ adabost_cv_reduced <- train(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall
                           verbose = FALSE,
                           metric="ROC")
 
-adabost_cv_reduced
+adabost_cv_reduced # ROC (0.8914) very similar to ROC for the adaboost_cv(0.8936)  
+rm(adaboost_cv) # Choose redcued model over full model
 
 ## Set the hyperparameter grid to the optimal values from the inside loop
 paramGrid_adaboost <- expand.grid(n.trees = c(150), interaction.depth = c(3), shrinkage = c(0.1), n.minobsinnode = c(10))
@@ -520,15 +522,19 @@ print_metrics_adaboost = function(mod){
 }
 print_metrics_adaboost(adaboost_cv_outer)
 
-plot.roc(adaboost_cv_outer$pred$obs,adaboost_cv_outer$pred$Yes, print.thres=T, col='blue',print.thres.pch=8,
+pdf('figs/rocPlot.pdf',width = 7,height = 6)
+plot.roc(adaboost_cv_outer$pred$obs,adaboost_cv_outer$pred$Yes,lty=3,print.thres=T, col='blue',print.thres.pch=8,
          print.thres.adj=0, print.thres.cex=0.7, print.thres.col='blue')
-plot.roc(logis_cv_outer$pred$obs,logis_cv_outer$pred$Yes, print.thres=T,add=T, col='red',print.thres.pch=1,
+plot.roc(logis_cv_outer$pred$obs,logis_cv_outer$pred$Yes,lty=2, print.thres=T,add=T, col='red',print.thres.pch=1,
          print.thres.adj=1, print.thres.cex=0.7, print.thres.col='red')
+dev.off()
 
 save.image('rda/datasets_wip.rda')
 #*************************************************Mar 02***********************************************
 
-# Predicting with Adaboost Model ####
+# Predicting - Logistic Model ####
+
+# Predicting - Adaboost Model ####
 testSet1<-testSet # duplicating testset in case something goes wrong
 
 # Creating Dummy Variables indicating whether wind is blowing from a direction 
