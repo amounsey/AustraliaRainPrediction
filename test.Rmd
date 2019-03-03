@@ -1,0 +1,174 @@
+---
+title: "Australia Next Day Rain Prediction"
+author: "Allister Mounsey"
+date: "24 February 2019"
+output: bookdown::pdf_document2
+---
+
+```{r setup, include=FALSE,warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE,fig.width=7,fig.height=6)
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggalt))
+suppressMessages(library(caret))
+suppressMessages(library(png))
+suppressMessages(library(summarytools))
+suppressMessages(library(factoextra))
+#suppressMessages(library(stargazer))
+suppressMessages(library(knitr))
+suppressMessages(library(kableExtra)) 
+load('rda/datasets_wip.rda')
+gc() 
+```
+
+#Introduction
+In this paper a rain prediction model for various locations in Australia is developed using daily weather data supplied by the Australia Bureau of Meteorology for the period November 2007 to June 2017. Specifically it predicts whether tomorrow's precipitation in a given location will exceed 1 mm - in which case it is labeled **Yes**, otherwise **No**. In selecting a suitable model, binary clasification techniques based on *Logistic Regression* and *Boosted Decision Trees* are explored. The *Receiver Operating Characteristic (ROC)* was the metric used in training these models. Model diagnistics suggests both models are useful predictors with the estimated *Area Under the Curve (AUC)*  being 0.891 and 0.893 in favor of the model based on *Boosted Decision Trees*. This suggest that the model based on *Boosted Decision Trees* should be selected based on its (albeit marginally) superior *ROC*. Applying the "preferred" model to the *test dataset*  (using the default cut-off of 0.5) result in a *True Positive Rate (Recall)* of 81% and a *True Negative Rate (Specificity)* of similar magnitude (80.7%). The paper also examines the utility of combining the predictive power of both models, ...
+
+The remained of the paper is structured as follows. Section 2 outlines in greater the models and techniques employed as well as the analysis that assisted in arriving at the articulated models. Section 3 presents the results of the models and conclusions are presented in section 4.
+
+#Methods and Analysis
+##Data
+The was obtained from Kaggle, the following is the link to the dataset: <https://www.kaggle.com/jsphyg/weather-dataset-rattle-package/home>. The **weather** dataset contains 142,193 daily weather observations from 49 weather stations across Australia over period covering November 2007 to June 2017. The following are 24 orginal variables in this dataset:
+
+* **Date**-The date of observation,
+* **Location**-The common name of the location of the weather station,
+* **MinTemp**-The minimum temperature in degrees celsius,
+* **MaxTemp**-The maximum temperature in degrees celsius,
+* **Rainfall**-The amount of rainfall recorded for the day in mm,
+* **Evaporation**-The so-called Class A pan evaporation (mm) in the 24 hours to 9am,
+* **Sunshine**-The number of hours of bright sunshine in the day,
+* **WindGustDir**-The direction of the strongest wind gust in the 24 hours to midnight,
+* **WindGustSpeed**-The speed (km/h) of the strongest wind gust in the 24 hours to midnight,
+* **WindDir9am**-Direction of the wind at 9am,
+* **WindDir3pm**-Direction of the wind at 3pm,
+* **WindSpeed9am**-Wind speed (km/hr) averaged over 10 minutes prior to 9am,
+* **WindSpeed3pm**-Wind speed (km/hr) averaged over 10 minutes prior to 3pm,
+* **Humidity9am**-Humidity (percent) at 9am,
+* **Humidity3pm**-Humidity (percent) at 3pm,
+* **Pressure9am**-Atmospheric pressure (hpa) reduced to mean sea level at 9am,
+* **Pressure3pm**-Atmospheric pressure (hpa) reduced to mean sea level at 3pm',
+* **Cloud9am**-Fraction of sky obscured by cloud at 9am. This is measured in \"oktas\", which are a unit of eigths. It records how many eigths of the sky are obscured by cloud. A 0 measure indicates completely clear sky whilst an 8 indicates that it is completely overcast,
+* **Cloud3pm**-Fraction of sky obscured by cloud (in \"oktas\": eighths) at 3pm. See Cload9am for a description of the values,
+* **Temp9am**-Temperature (degrees C) at 9am,
+* **Temp3pm**-Temperature (degrees C) at 3pm,
+* **RainToday**-Boolean: 1 if precipitation (mm) in the 24 hours to 9am exceeds 1mm, otherwise 0,
+* ***RISK_MM***-The amount of rain. A kind of measure of the \"risk\",
+* **RainTomorrow**-The target variable. Did it rain tomorrow?
+
+The variable ***RISK_MM*** was deleted from the dataset based on the cautionary note from the Kaggle webpage advising that this variable should be excluded from binary classification models because it will "leak the answers to your model and reduce its predictability".
+
+The variables **WindDir9am/3pm** can legitimately take on an NA value in the absence of wind- that is **WindSpeed9am/3pm = 0** respectively. This is addressed by creating a new factor level called *NoDir* for these cases. After accounting for the *NoDir* cases in WindDir variables, approximately 60% of cases (rows) in the dataset contained atleast one or more missing values. Quick examination of these cases reveal a tendency for some stations (**Locations**) to consistently report NAs for some variables,in such cases imputation does seem advisable. All these missing cases were therefore dropped resulting in the dataset being reduced to 58,079 observations over 26 unique **Locations** as opposed to 49 orginally. The analysis and results that follow is for these 26 locations using the truncated dataset.
+
+Having cleaned the **weather** dataset, it was then randomly split in an 8:2 ratio. The larger dataset was used for training the models and is herein referred to as the **trainSet** while the remaining 20% was reserved exclusively for testing purposed (the **testSet**). All data analysis was conducted only on the **trainSet**.
+
+##Data Analysis
+In thinking of constructing a rain prediction model for Australia, rudimentary inquiry into rainfall partners across the continent was conducted. Figure \@ref(fig:map) represents an insightfully summary of rainfall pattern across the country. The figure shows progressively lower number of raindays as on moves inland from the northern, eastern and southern coast, with interior and western regions having very few rain days.  
+
+```{r map,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:map}Rain Days across Australia \\ Source: <http://www.bom.gov.au/jsp/ncc/climate_averages/raindays/index.jsp>" }
+knitr::include_graphics('figs/aussiemap.pdf')
+```
+
+Another important weather feature is the seasonal patterns in rainfall. Figure \@ref(fig:seasonal) illustrates two readily observed seasonal rain patterns. In some regions like Darwin there is a Summer (Southern Hemisphere) Monsoon - where over period December to March there is significantly increased rainfall, both in terms of volume and the number of rain days in the month. While in areas like Portland there is a Winter Monsoon starting around May and ending in September.
+
+Figures \@ref(fig:map) and \@ref(fig:seasonal) points to the possibility that combinations of location and months may be jointly predictive of the label- **RainTomorrow**. For example Darwin in the month of January (Darwin-January) any given day has typically has a $\frac{20}{30}$ chance of rain where as in Portland-January the chance is typically $\frac{5}{30}$. The contrast is however reversed if Portland-July and Darwin-July are examined. This phenomenon referenced here as *Location-Month Effect* will be returned to in the next sub-section.
+
+```{r seasonal,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:seaonal}Monthly Rainfall Patterns by Location"}
+knitr::include_graphics('figs/seasonal.pdf')
+```
+
+##Feature Selection and Engineering
+Each numeric *feature* in the **trainSet** was examine to determine the extent to which it separated along *label* values - that is the degree to which the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'Yes' is different from the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'No'. This examination was conducted at two ways: (1) using *box-plots* and (2) using the * Kolmogorov–Smirnov test (KS test)*. Some *features* are 'well separated' as can be observed in figure \@ref(fig:wellsep). This figure shows that the distribution of **Humidity3pm** conditioned on **RainTomorrow**= 'Yes' is shifted to the right (that it typically contains higher values) of that which is conditioned on **RainTomorrow**= 'No'. **Clouds3pm** is similarly well separated. 
+
+```{r wellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:wellsep}Examples of Some Well Separated Cases"}
+knitr::include_graphics('figs/wellsep.pdf')
+```
+
+Some examples of 'not well separated' features are illustrated in figure \@ref(fig:notwellsep). In figure \@ref(fig:notwellsep) it is easily observed that the degree of distributional overlap is high across case conditioned on the outcome of the *Label* -**RainTomorrow**.
+
+```{r notwellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:notwellsep}Examples of Some **NOT** Well Separated Cases"}
+knitr::include_graphics('figs/notwellsep.pdf')
+```
+
+The test statistic - *D* for the *KS test* was used to determine the relative strength (degree) of 'separatedness' as well as to determine a cut-off point for what should be considered as reasonably 'separated' *feature*. The cut-off point choosen was $D=0.1$. *Features* with $D\geq 0.1$ were considered 'well-separated' and were selected as *features* to be used in constructing the models.
+
+```{r sepNumvar,echo=FALSE,warning=FALSE}
+kableExtra::kable_styling(knitr::kable(ks,booktabs = TRUE,
+  caption = 'Results of Kolmogorov-Smirnov test on Conditional Distributions (RainTomorrow = No vs. RainTomorrow = Yes)',
+  row.names = NA,col.names = NA),latex_options = "hold_position")
+```
+
+The *Location-Month Effect (LME)* referred to previous may prove to be predictive of the *Label*. Since there are 26 locations in the **trainSet** should an attempt be made to directly leverage the LME at total of ($26 \times 12$) 312 factor levels must created and more critically 311 of them must be estimated.  To overcome the computational cost of this a *clustering* approach is employed to simultaneously leverage the LME while reducing computational load. 
+
+```{r locMon,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon}Finding Optimal Number for Location - Month Clustering"}
+g1<-fviz_nbclust(check,FUN=hcut,method = 'wss')
+g2<-fviz_nbclust(check,FUN=hcut,method = 'silhouette')
+g3<-fviz_gap_stat(gap_stat)
+gridExtra::grid.arrange(g1,g2,g3, ncol=1)
+```
+
+
+```{r locMon1,echo=FALSE,warning=FALSE}
+clustmat<-trainSet%>%group_by(Location,Month)%>%
+  summarise(rainDays=30.5*mean(ifelse(RainToday=='No',0,1)),sd_rainDays=sd(ifelse(RainToday=='No',0,1)))%>%
+  mutate(label=paste(Location,Month, sep = '_'))%>%ungroup()%>%
+  select(Location,Month)%>%mutate(cluster=clust)
+
+kableExtra::kable_styling(knitr::kable(clustmat%>%spread(key=Month,value=cluster),booktabs = TRUE,
+  caption = 'Location-Month Clusters',
+  row.names = NA,col.names = NA),latex_options = "hold_position")
+```
+
+```{r locMon2,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon2}Number of Rain Days and Variability in Rain Days accross Clusters"}
+fviz_cluster(list(data=check,cluster=clust), geom = 'point',
+             xlab = 'Rain Days (Standardized)',ylab = 'Variability in Rain Days (Standardized)',
+             main = NULL,ggtheme = theme_bw())
+```
+
+```{r winddir,echo=FALSE,warning=FALSE,message=FALSE}
+x1<-trainSet[trainSet$Location=="Cobar",]$RainTomorrow
+x2<- trainSet[trainSet$Location=="Cobar",]$WindGustDir
+x<-ctable(x1,x2, prop = 'c')[2] # the Crosstab as proportions the 2nd table in the list 
+kableExtra::kable_styling(knitr::kable(x,digits = 2,booktabs = TRUE,
+  caption = 'Conditional Probabilities No Rain Tomorrow vs. Rain Tomorrow Given WindGust Direction (Location = Cobar) ',
+  row.names = NA,col.names = NA),latex_options = "hold_position", full_width = T)
+  
+```
+
+```{r raindir1, echo=FALSE,warning=FALSE,message=FALSE }
+x<-kable(ctable(trainSet$rainDir9am,trainSet$RainTomorrow,omit.headings = F)[2],digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDir9am",'latex')
+x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c(" ","RainTomorrow"=3))%>%group_rows('rainDir9am',start_row = 1,end_row = 2,colnum = 1)
+```
+
+```{r raindir2, echo=FALSE,warning=FALSE,message=FALSE }
+x<-kable(ctable(trainSet$rainDir3pm,trainSet$RainTomorrow,omit.headings = F)[2],digits = 2,booktabs=T,caption = "Probabilites of Rain Tomorrow Conditioned on rainDir3pm",'latex')
+x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c(" ","RainTomorrow"=3))%>%group_rows('rainDir3pm',start_row = 1,end_row = 2,colnum = 1)
+
+```
+
+```{r raindir3, echo=FALSE,warning=FALSE,message=FALSE }
+x<-kable(ctable(trainSet$rainDirGust,trainSet$RainTomorrow,omit.headings = F)[2],digits = 2,booktabs=T, caption = "Probabilites of Rain Tomorrow Conditioned on rainDirGust",'latex')
+x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c(" ","RainTomorrow"=3))%>%group_rows('rainDirGust',start_row = 1,end_row = 2,colnum = 1)
+```
+
+## Models and Estimation Techniques
+*Be sure to speak about scaleing and centering numeric features*
+
+#Results
+##Logistic Model
+result from Logistic hyper parameter tuning
+
+```{r logistic, echo=FALSE,warning=F,message=FALSE}
+kableExtra::kable_styling(knitr::kable(bestTune_logis_full,booktabs=T,caption ='Optimal Hyperparameter Selection Using Logistic Model 10-fold nested Cross Validation'),latex_options = 'hold_position')
+
+```
+
+```{r varImpLogistic,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:varImpLogistic}Variable Importance for Logistic Model"}
+plot(var_imp_logistics)
+
+```
+we drop ... the optimal hyperparameters values were the same with no significant change in ROC 
+
+```{r logisticncvExpected,echo=FALSE,warning=F,message=FALSE}
+kableExtra::kable_styling(knitr::kable(logis_cv_outer$results,booktabs=T, caption = 'Expected Performance of the Logistic Model'),latex_options = 'hold_position')
+
+```
+

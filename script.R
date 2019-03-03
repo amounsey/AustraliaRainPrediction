@@ -334,11 +334,6 @@ check$label<-NULL
 check1<-check
 check<-scale(check)
 
-# d<-dist(check)
-# hc1<-hclust(d)
-# plot(hc1)
-# rect.hclust(hc1,k=4)
-
 hc<-agnes(check)
 hc$ac # agglomerative Coefficient of close to 1 - strong clustering structure
 # pltree(hc, main='Dendrogram of Location_Month')
@@ -392,7 +387,9 @@ logis_cv<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday
                   trControl=fitControl_logis)
 
 logis_cv
+
 var_imp_logistics<-varImp(logis_cv)
+bestTune_logis_full<-logis_cv$bestTune
 print(var_imp_logistics)
 plot(var_imp_logistics)
 
@@ -412,14 +409,13 @@ logis_cv_reduced
 # Optimal model from logis_cv_model has similar hyper-parameters and model performance as logis_cv
 # The reduced model specification is therefore favoured.
 rm(logis_cv)
-save.image('rda/datasets_wip.rda')
-#*************************************************Mar 02***********************************************
+
 #  Outer Loop (ROC) 
 ## Set the hyperparameter grid to the optimal values from the inside loop
-paramGrid_logistic <- expand.grid(alpha = c(cv_mod_roc_reduced$bestTune$alpha),
-                         lambda = c(cv_mod_roc_reduced$bestTune$lambda))
+paramGrid_logistic <- expand.grid(alpha = logis_cv_reduced$bestTune$alpha,
+                         lambda = logis_cv_reduced$bestTune$lambda)
 
-fitControl1 = trainControl(method = 'cv',
+fitControl_logis1 = trainControl(method = 'cv',
                           number = 10,
                           returnResamp="all",
                           savePredictions = TRUE,
@@ -427,28 +423,19 @@ fitControl1 = trainControl(method = 'cv',
                           summaryFunction = twoClassSummary)
 
 set.seed(4789)
-# cv_mod_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
-#                       Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
-#                       Cloud9am+Cloud3pm+Temp3pm,
-#                   data = trainSet_dv,
-#                   method ='glmnet',
-#                   weights = weights,
-#                   tuneGrid=paramGrid_logistic,
-#                   metric='ROC',
-#                   trControl=fitControl1)
 
-cvReduced_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
-          Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
-          Cloud9am+Cloud3pm,
-        data = trainSet_dv,
+logis_cv_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
+                        Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
+                        Cloud9am+Cloud3pm,
+        data = trainSet,
         method ='glmnet',
         weights = weights,
         tuneGrid=paramGrid_logistic,
         metric='ROC',
-        trControl=fitControl1)
+        trControl=fitControl_logis1)
 
-print_metrics_logistic(cvReduced_outer)
-
+# Function to append and print Mean and STD summary statistcs to resample output 
+# This is not needed (wait until you have examined adaboost model before deleting)_start(1)
 print_metrics_logistic = function(mod){
   means = c(apply(mod$resample[,1:3], 2, mean), alpha = mod$resample[1,4], 
             lambda = mod$resample[1,5], Resample = 'Mean')
@@ -458,53 +445,14 @@ print_metrics_logistic = function(mod){
   out[,1:3] = lapply(out[,1:3], function(x) round(as.numeric(x), 3))
   out
 }
-# print_metrics_logistic(cv_mod_outer)
-# library(ROCR)
-library(pROC)
-#library(plotROC)
 
-testSet1$Month<-months(testSet1$Date, abbreviate = T) #  extract month to get season variation
-testSet1<-testSet1%>%mutate(locMon=paste(Location,Month, sep = '_'))
-testSet1<-testSet1%>%left_join(cluster4joining)
-testSet1$cluster<-as.factor(testSet1$cluster)
+print_metrics_logistic(logis_cv_outer)
+#_end(1)
 
-ctrl <- trainControl(method="cv", summaryFunction=twoClassSummary, classProbs=T,
-                     savePredictions = T)
+plot.roc(logis_cv_outer$pred$obs,logis_cv_outer$pred$Yes, print.thres=T) # Plot expected ROC with threshold and Spec, Sens 
 
-set.seed(4789)
-modFit4roc <- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
-                 Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
-                 Cloud9am+Cloud3pm,
-               data = trainSet_dv,
-               method ='glmnet',
-               weights = weights,
-               tuneGrid=paramGrid_logistic, 
-               trControl=fitControl1)
-
-cvReduced_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+
-                         Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
-                         Cloud9am+Cloud3pm,
-                       data = trainSet_dv,
-                       method ='glmnet',
-                       weights = weights,
-                       tuneGrid=paramGrid_logistic,
-                       metric='ROC',
-                       trControl=fitControl1)
-
-plotROC::geom_roc()
-
-df<-data.frame(truth=modFit4roc$trainingData$.outcome,predicted=modFit4roc$pred$Yes,z=modFit4roc$pred$Resample)
-ggplot(df, aes(d=truth,m=predicted))+geom_roc(n.cuts = 10, labelround = 2)+facet_wrap(~z) + coord_fixed()
-summary(df)
-
-plot.roc(modFit4roc$pred$obs,modFit4roc$pred$No)
-plot.roc(cvReduced_outer$pred$obs,cvReduced_outer$pred$Yes, print.thres=T)
-plot.roc(modFit4roc$pred$obs,modFit4roc$pred$Yes, print.thres=T)
-
-summary(testSet1)
-
-knitr::kable(print_metrics(cv_mod_outer))
-cv_mod_roc$results[,1:3]
+knitr::kable(print_metrics(logis_cv_outer))
+logis_cv_outer$results
 
 
 # AdaBoost (Adaptive Boosting) ####
@@ -519,44 +467,45 @@ fitControl_adaboost <- trainControl(method = "cv",
                            summaryFunction = twoClassSummary)
 
 set.seed(1234)
-bb_fit_inside_tw <- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
+adaboost_cv<- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
                             Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
                             Cloud9am+Cloud3pm+Temp3pm, 
-                          data = trainSet_dv,  
+                          data = trainSet,  
                           method = "gbm", # Gradient boosted tree model
                           trControl = fitControl_adaboost, 
                           verbose = FALSE,
                           metric="ROC")
-print(bb_fit_inside_tw)
+print(adaboost_cv)
 
-var_imp_adaboost = varImp(bb_fit_inside_tw)
+var_imp_adaboost = varImp(adaboost_cv)
 print(var_imp_adaboost)
 plot(var_imp_adaboost)
 
-# Reduced model based on variable importance cutoff =2
+# Reduced model based on variable importance cutoff =3
 
 set.seed(1234)
-bb_fit_inside_tw_reduced <- train(RainTomorrow~rainDir9am+rainDir3pm+rainDirGust+Rainfall+
-                            Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
-                            Cloud3pm+Temp3pm, 
-                          data = trainSet_dv,  
+adabost_cv_reduced <- train(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
+                                    Sunshine+WindGustSpeed+Humidity3pm+Pressure3pm+
+                                    Cloud3pm, 
+                          data = trainSet,  
                           method = "gbm", # Gradient boosted tree model
                           trControl = fitControl_adaboost, 
                           verbose = FALSE,
                           metric="ROC")
-print(bb_fit_inside_tw_reduced)
+
+adabost_cv_reduced
 
 ## Set the hyperparameter grid to the optimal values from the inside loop
 paramGrid_adaboost <- expand.grid(n.trees = c(150), interaction.depth = c(3), shrinkage = c(0.1), n.minobsinnode = c(10))
 
 set.seed(5678)
-bb_fit_outside_tw <- train(RainTomorrow~rainDir9am+rainDir3pm+rainDirGust+Rainfall+
-                             Sunshine+WindGustSpeed+Humidity3pm+Pressure9am+Pressure3pm+
-                             Cloud3pm+Temp3pm, 
-                           data = trainSet_dv, 
+adaboost_cv_outer <- train(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
+                             Sunshine+WindGustSpeed+Humidity3pm+Pressure3pm+
+                             Cloud3pm, 
+                           data = trainSet, 
                            method = "gbm", # Gradient boosted tree model
                            trControl = fitControl_adaboost, 
-                           tuneGrid = paramGrid, 
+                           tuneGrid = paramGrid_adaboost, 
                            verbose = FALSE,
                            metric="ROC")
 
@@ -569,13 +518,15 @@ print_metrics_adaboost = function(mod){
   out[,1:3] = lapply(out[,1:3], function(x) round(as.numeric(x), 3))
   out
 }
-print_metrics_adaboost(bb_fit_outside_tw)
+print_metrics_adaboost(adaboost_cv_outer)
 
-plot.roc(bb_fit_outside_tw$pred$obs,bb_fit_outside_tw$pred$Yes, print.thres=T, col='blue',print.thres.pch=8,
-         print.thres.adj=0, print.thres.cex=0.7, print.auc=T)
-plot.roc(modFit4roc$pred$obs,modFit4roc$pred$Yes, print.thres=T,add=T, col='red',print.thres.pch=1,
-         print.thres.adj=1, print.thres.cex=0.7)
+plot.roc(adaboost_cv_outer$pred$obs,adaboost_cv_outer$pred$Yes, print.thres=T, col='blue',print.thres.pch=8,
+         print.thres.adj=0, print.thres.cex=0.7, print.thres.col='blue')
+plot.roc(logis_cv_outer$pred$obs,logis_cv_outer$pred$Yes, print.thres=T,add=T, col='red',print.thres.pch=1,
+         print.thres.adj=1, print.thres.cex=0.7, print.thres.col='red')
 
+save.image('rda/datasets_wip.rda')
+#*************************************************Mar 02***********************************************
 
 # Predicting with Adaboost Model ####
 testSet1<-testSet # duplicating testset in case something goes wrong
