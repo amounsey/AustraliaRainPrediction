@@ -202,8 +202,12 @@ knitr::include_graphics('figs/rocPlot.pdf')
 
 ```
 
-```{r adaboostConfusMat, echo=FALSE,warning=F,message=FALSE}
-kableExtra::kable_styling(knitr::kable(confussionMat[['table']], booktabs=T, caption = "Confusion Matrix for AdaBoost Model"),latex_options = 'hold_position')
+```{r cmLogis, echo=FALSE,warning=F,message=FALSE}
+kableExtra::kable_styling(knitr::kable(confusionMatLogis[['table']], booktabs=T, caption = "Confusion Matrix for Logistic Model"),latex_options = 'hold_position')
+```
+
+```{r cmAdaboost, echo=FALSE,warning=F,message=FALSE}
+kableExtra::kable_styling(knitr::kable(confusionMatAdaboost[['table']], booktabs=T, caption = "Confusion Matrix for AdaBoost Model"),latex_options = 'hold_position')
 ```
 
 #Conclusion 

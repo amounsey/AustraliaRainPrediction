@@ -529,28 +529,57 @@ plot.roc(logis_cv_outer$pred$obs,logis_cv_outer$pred$Yes,lty=2, print.thres=T,ad
          print.thres.adj=1, print.thres.cex=0.7, print.thres.col='red')
 dev.off()
 
-save.image('rda/datasets_wip.rda')
-#*************************************************Mar 02***********************************************
+# Preparing testSet for prediction ####
+summary(testSet)
 
-# Predicting - Logistic Model ####
+#testSet1<-testSet # duplicating testset in case something goes wrong
 
-# Predicting - Adaboost Model ####
-testSet1<-testSet # duplicating testset in case something goes wrong
+testSet$Month<-months(testSet$Date, abbreviate = T) #  extract month to get season variation
+# str(testSet$Month) # Month is chr vector
+# month_order<-unique(trainSet$Month) # this will be used to generate factor levels when month is converted to a fct (thankfully no further reordering is required)
+testSet$Month<-factor(testSet$Month, levels=month_order) #Month is now a Factor
 
 # Creating Dummy Variables indicating whether wind is blowing from a direction 
 # where the conditional probability P(Yes_RainTomorrow/Dir)>P(Yes_RainTomorrow)
-testSet1$rainDir9am<-NA
-testSet1$rainDir3pm<-NA
-testSet1$rainDirGust<-NA
+testSet$rainDir9am<-NA
+testSet$rainDir3pm<-NA
+testSet$rainDirGust<-NA
 for (l in location) {
-  testSet1[testSet1$Location==l,"rainDir9am"]<-ifelse(testSet1[testSet1$Location==l,]$WindDir9am%in%rainDir9am[[l]],1,0)
-  testSet1[testSet1$Location==l,"rainDir3pm"]<-ifelse(testSet1[testSet1$Location==l,]$WindDir3pm%in%rainDir3pm[[l]],1,0)
-  testSet1[testSet1$Location==l,"rainDirGust"]<-ifelse(testSet1[testSet1$Location==l,]$WindGustDir%in%rainDirGust[[l]],1,0)
+  testSet[testSet$Location==l,"rainDir9am"]<-ifelse(testSet[testSet$Location==l,]$WindDir9am%in%rainDir9am[[l]],'Yes','No')
+  testSet[testSet$Location==l,"rainDir3pm"]<-ifelse(testSet[testSet$Location==l,]$WindDir3pm%in%rainDir3pm[[l]],'Yes','No')
+  testSet[testSet$Location==l,"rainDirGust"]<-ifelse(testSet[testSet$Location==l,]$WindGustDir%in%rainDirGust[[l]],'Yes','No')
 }
 
-testSet1$rainDir9am<-as.factor(testSet1$rainDir9am)
-testSet1$rainDir3pm<-as.factor(testSet1$rainDir3pm)
-testSet1$rainDirGust<-as.factor(testSet1$rainDirGust)
+# for (l in location) {
+#   trainSet[trainSet$Location==l,"rainDir9am"]<-ifelse(trainSet[trainSet$Location==l,]$WindDir9am%in%rainDir9am[[l]],'Yes','No')
+#   trainSet[trainSet$Location==l,"rainDir3pm"]<-ifelse(trainSet[trainSet$Location==l,]$WindDir3pm%in%rainDir3pm[[l]],'Yes','No')
+#   trainSet[trainSet$Location==l,"rainDirGust"]<-ifelse(trainSet[trainSet$Location==l,]$WindGustDir%in%rainDirGust[[l]],'Yes','No')
+# }
+
+# testSet$rainDir9am<-as.factor(testSet$rainDir9am)
+# testSet$rainDir3pm<-as.factor(testSet$rainDir3pm)
+# testSet$rainDirGust<-as.factor(testSet$rainDirGust)
+
+testSet<-testSet%>%mutate_at(vars(rainDir9am:rainDirGust),funs(as.factor(.))) # converting rainDir9am:rainDirGust to factor variables
+
+
+testSet<-testSet%>%mutate(locMon=paste(Location,Month, sep = '_')) # variable locMon created to facilitate joining
+testSet<-testSet%>%left_join(cluster4joining) # joining by locMon
+testSet$cluster<-as.factor(testSet$cluster) # making cluster a factor variable
+summary(testSet)
+# Predicting & Final Evaluation  ####
+testSet$predictLogis<-predict(logis_cv_outer,newdata = testSet)
+testSet$predictAdaboost<-predict(adaboost_cv_outer,newdata = testSet)
+confusionMatLogis<-confusionMatrix(testSet$predictLogis,testSet$RainTomorrow) # confusion matrix for logistic prediction
+confusionMatLogis
+
+confusionMatAdaboost<-confusionMatrix(testSet$predictAdaboost,testSet$RainTomorrow) # confusion matrix for adaboost prediction
+confusionMatAdaboost
+
+save.image('rda/datasets.rda')
+#*************************************************Mar 02***********************************************
+
+# Predicting - Adaboost Model ####
 
 testSet1$prediction<-predict(bb_fit_outside_tw,newdata = testSet1)
 
