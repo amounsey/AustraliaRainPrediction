@@ -20,7 +20,7 @@ gc()
 ```
 
 #Introduction
-In this paper a rain prediction model for various locations in Australia is developed using daily weather data supplied by the Australia Bureau of Meteorology for the period November 2007 to June 2017. Specifically it predicts whether tomorrow's precipitation in a given location will exceed 1 mm - in which case it is labeled **Yes**, otherwise **No**. In selecting a suitable model, binary clasification techniques based on *Logistic Regression* and *Boosted Decision Trees* are explored. The *Receiver Operating Characteristic (ROC)* was the metric used in training these models. Model diagnistics suggests both models are useful predictors with the estimated *Area Under the Curve (AUC)*  being 0.891 and 0.893 in favor of the model based on *Boosted Decision Trees*. This suggest that the model based on *Boosted Decision Trees* should be selected based on its (albeit marginally) superior *ROC*. Applying the "preferred" model to the *test dataset*  (using the default cut-off of 0.5) result in a *True Positive Rate (Recall)* of 81% and a *True Negative Rate (Specificity)* of similar magnitude (80.7%). The paper also examines the utility of combining the predictive power of both models, ...
+In this paper a rain prediction model for various locations in Australia is developed using daily weather data supplied by the Australia Bureau of Meteorology for the period November 2007 to June 2017. Specifically it predicts whether tomorrow's precipitation in a given location will exceed 1 mm - in which case it is labeled **Yes**, otherwise **No**. In selecting a suitable model, binary clasification techniques based on *Logistic Regression* and *Boosted Decision Trees* are explored. The *Receiver Operating Characteristic (ROC)* was the metric used in training these models. Model diagnistics suggests both models are useful predictors with the estimated *Area Under the Curve (AUC)*  being 0.892 and 0.891 in favor of the model based on *Logistic Regression*. This suggest that the model based on *Logistic Regression* should be selected based on its (albeit marginally) superior *ROC*. Applying the "preferred" model to the *test dataset*  (using the default cut-off of 0.5) result in a *True Positive Rate (Recall)* of 80.7% and a *True Negative Rate (Specificity)* of the same magnitude. 
 
 The remained of the paper is structured as follows. Section 2 outlines in greater the models and techniques employed as well as the analysis that assisted in arriving at the articulated models. Section 3 presents the results of the models and conclusions are presented in section 4.
 
@@ -55,7 +55,7 @@ The was obtained from Kaggle, the following is the link to the dataset: <https:/
 
 The variable ***RISK_MM*** was deleted from the dataset based on the cautionary note from the Kaggle webpage advising that this variable should be excluded from binary classification models because it will "leak the answers to your model and reduce its predictability".
 
-The variables **WindDir9am/3pm** can legitimately take on an NA value in the absence of wind- that is **WindSpeed9am/3pm = 0** respectively. This is addressed by creating a new factor level called *NoDir* for these cases. After accounting for the *NoDir* cases in WindDir variables, approximately 60% of cases (rows) in the dataset contained atleast one or more missing values. Quick examination of these cases reveal a tendency for some stations (**Locations**) to consistently report NAs for some variables,in such cases imputation does seem advisable. All these missing cases were therefore dropped resulting in the dataset being reduced to 58,079 observations over 26 unique **Locations** as opposed to 49 orginally. The analysis and results that follow is for these 26 locations using the truncated dataset.
+The variables **WindDir9am/3pm** can legitimately take on an NA value in the absence of wind- that is **WindSpeed9am/3pm = 0** respectively. This is addressed by creating a new factor level called *NoDir* for these cases. After accounting for the *NoDir* cases in WindDir variables, approximately 60% of cases (rows) in the dataset contained atleast one or more missing values. Quick examination of these cases reveal a tendency for some stations (**Locations**) to consistently report NAs for some variables,in such cases imputation does seem advisable. All these missing cases were therefore dropped, resulting in the dataset being reduced to 58,079 observations over 26 unique **Locations** as opposed to 49 orginally. The analysis and results that follow is for these 26 locations using the truncated dataset.
 
 Having cleaned the **weather** dataset, it was then randomly split in an 8:2 ratio. The larger dataset was used for training the models and is herein referred to as the **trainSet** while the remaining 20% was reserved exclusively for testing purposed (the **testSet**). All data analysis was conducted only on the **trainSet**.
 
@@ -68,14 +68,14 @@ knitr::include_graphics('figs/aussiemap.pdf')
 
 Another important weather feature is the seasonal patterns in rainfall. Figure \@ref(fig:seasonal) illustrates two readily observed seasonal rain patterns. In some regions like Darwin there is a Summer (Southern Hemisphere) Monsoon - where over period December to March there is significantly increased rainfall, both in terms of volume and the number of rain days in the month. While in areas like Portland there is a Winter Monsoon starting around May and ending in September.
 
-Figures \@ref(fig:map) and \@ref(fig:seasonal) points to the possibility that combinations of location and months may be jointly predictive of the label- **RainTomorrow**. For example Darwin in the month of January (Darwin-January) any given day has typically has a $\frac{20}{30}$ chance of rain where as in Portland-January the chance is typically $\frac{5}{30}$. The contrast is however reversed if Portland-July and Darwin-July are examined. This phenomenon referenced here as *Location-Month Effect* will be returned to in the next sub-section.
+Figures \@ref(fig:map) and \@ref(fig:seasonal) points to the possibility that combinations of location and months may be jointly predictive of the label- **RainTomorrow**. For example, Darwin in the month of January (Darwin-January), any given day typically has a $\frac{20}{30}$ chance of rain where as in Portland-January the chance is typically $\frac{5}{30}$. The contrast is however reversed if Portland-July and Darwin-July are examined. This phenomenon is referenced here as *Location-Month Effect* will be returned to in the next sub-section.
 
 ```{r seasonal,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:seaonal}Monthly Rainfall Patterns by Location"}
 knitr::include_graphics('figs/seasonal.pdf')
 ```
 
 ##Feature Selection and Engineering
-Each numeric *feature* in the **trainSet** was examine to determine the extent to which it separated along *label* values - that is the degree to which the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'Yes' is different from the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'No'. This examination was conducted at two ways: (1) using *box-plots* and (2) using the * Kolmogorov–Smirnov test (KS test)*. Some *features* are 'well separated' as can be observed in figure \@ref(fig:wellsep). This figure shows that the distribution of **Humidity3pm** conditioned on **RainTomorrow**= 'Yes' is shifted to the right (that it typically contains higher values) of that which is conditioned on **RainTomorrow**= 'No'. **Clouds3pm** is similarly well separated. 
+Each numeric *feature* in the **trainSet** was examine to determine the extent to which it separated along *label* values - that is the degree to which the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'Yes' is different from the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'No'. This examination was conducted at two ways: (1) using *box-plots* and (2) using the *Kolmogorov–Smirnov test (KS test)*. Some *features* are 'well separated' as can be observed in figure \@ref(fig:wellsep). This figure shows that the distribution of **Humidity3pm** conditioned on **RainTomorrow**= 'Yes' is shifted to the right (that it typically contains higher values) of that which is conditioned on **RainTomorrow**= 'No'. **Clouds3pm** is similarly well separated. 
 
 ```{r wellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:wellsep}Examples of Some Well Separated Cases"}
 knitr::include_graphics('figs/wellsep.pdf')
@@ -95,15 +95,23 @@ kableExtra::kable_styling(knitr::kable(ks,booktabs = TRUE,
   row.names = NA,col.names = NA),latex_options = "hold_position")
 ```
 
-The *Location-Month Effect (LME)* referred to previous may prove to be predictive of the *Label*. Since there are 26 locations in the **trainSet** should an attempt be made to directly leverage the LME at total of ($26 \times 12$) 312 factor levels must created and more critically 311 of them must be estimated.  To overcome the computational cost of this a *clustering* approach is employed to simultaneously leverage the LME while reducing computational load. 
+The *Location-Month Effect (LME)* referred to previous may prove to be predictive of the *Label*. Since there are 26 locations in the **trainSet** should an attempt be made to directly leverage the LME at total of ($26 \times 12$) 312 factor levels must created and more critically 311 of them must be estimated.  To overcome the computational cost of this a *clustering* approach is employed to simultaneously leverage the LME while reducing computational load.
+
+The follow steps outline the procedure employed in computing these clusters:
+
+* A dataset of  number of Rain Days in each *Location-Month* group is computed by grouping the **trainSet** by **Location* and **Month** (the variable Month is created by extracted the month from each **Date** observation ) 
+* The Mean and Standard Deviation of this quantity is computed for each *Location-Month* group
+* K-means cluster is performed on these 312 paired observations
+
+In selecting an optimal number of clusters (*K*) by using the *within cluster sums of squares* and  *average silhouette* methods. Figure \@ref(fig:locMon), shows the results using a macimum cut-off of 10. An 'elbow' at $K=3$ is identified in the *within cluster sums of squares*, while the *average silhouette* suggest $K=10$. Ultimate $K=6$ was selected because it yeilded an *average silhouette width* that was closest to that for the suggested value. 
 
 ```{r locMon,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon}Finding Optimal Number for Location - Month Clustering"}
 g1<-fviz_nbclust(check,FUN=hcut,method = 'wss')
 g2<-fviz_nbclust(check,FUN=hcut,method = 'silhouette')
-g3<-fviz_gap_stat(gap_stat)
-gridExtra::grid.arrange(g1,g2,g3, ncol=1)
+gridExtra::grid.arrange(g1,g2, ncol=1)
 ```
 
+Figure \@ref(fig:locMon2) shows the (mean) number of rain days and the variability of rain days across these clusters. Table \@ref(tab:locMon1) provides **Location** and **Month** composition of each cluster. 
 
 ```{r locMon1,echo=FALSE,warning=FALSE}
 clustmat<-trainSet%>%group_by(Location,Month)%>%
@@ -121,6 +129,8 @@ fviz_cluster(list(data=check,cluster=clust), geom = 'point',
              xlab = 'Rain Days (Standardized)',ylab = 'Variability in Rain Days (Standardized)',
              main = NULL,ggtheme = theme_bw())
 ```
+
+Table \@ref(tab:winddir) relates to the town of Cobar. It provides  the conditional probability of rain tomorrow (Yes) given the wind gust direction, as well as, the conditional probability of no rain tomorrow (NO) given the wind gust direction. Representing the Probability of rain tomorrow as $P(R)$ and the conditional probability of rain tomorrow given a wind gust direction of $D$ as $P(R/D)$, one notes that in some directions (such as NE, NNE and ESE) the $P(R/D)\geq P(R)$. This means that knowing the wind gust is coming from these directions the chances of correctly guessing $R$ - rain tomorrow is higher that correctly guessing $R$ when the wind gust direction in not revealed.
 
 ```{r winddir,echo=FALSE,warning=FALSE,message=FALSE}
 x1<-trainSet[trainSet$Location=="Cobar",]$RainTomorrow

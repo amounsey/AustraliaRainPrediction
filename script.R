@@ -339,8 +339,8 @@ hc$ac # agglomerative Coefficient of close to 1 - strong clustering structure
 # pltree(hc, main='Dendrogram of Location_Month')
 fviz_nbclust(check,FUN=hcut,method = 'wss')
 fviz_nbclust(check,FUN=hcut,method = 'silhouette')
-gap_stat<-clusGap(check,FUN=hcut,nstart = 25, K.max=10, B=50)
-fviz_gap_stat(gap_stat)
+# gap_stat<-clusGap(check,FUN=hcut,nstart = 25, K.max=10, B=500)
+# fviz_gap_stat(gap_stat)
 
 clust<-cutree(as.hclust(hc),k=6)
 check1$clust<-clust
