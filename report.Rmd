@@ -99,11 +99,11 @@ The *Location-Month Effect (LME)* referred to previous may prove to be predictiv
 
 The follow steps outline the procedure employed in computing these clusters:
 
-* A dataset of  number of Rain Days in each *Location-Month* group is computed by grouping the **trainSet** by **Location* and **Month** (the variable Month is created by extracted the month from each **Date** observation ) 
+* A dataset of  number of Rain Days in each *Location-Month* group is computed by grouping the *trainSet* by **Location** and **Month** (the variable **Month** is created by extracted the month from each **Date** observation ) 
 * The Mean and Standard Deviation of this quantity is computed for each *Location-Month* group
 * K-means cluster is performed on these 312 paired observations
 
-In selecting an optimal number of clusters (*K*) by using the *within cluster sums of squares* and  *average silhouette* methods. Figure \@ref(fig:locMon), shows the results using a macimum cut-off of 10. An 'elbow' at $K=3$ is identified in the *within cluster sums of squares*, while the *average silhouette* suggest $K=10$. Ultimate $K=6$ was selected because it yeilded an *average silhouette width* that was closest to that for the suggested value. 
+In selecting an optimal number of clusters (*K*) by using the *within cluster sums of squares* and  *average silhouette* methods. Figure \@ref(fig:locMon), shows the results using a maximum cut-off of 10. An 'elbow' at $K=3$ is identified in the *within cluster sums of squares*, while the *average silhouette* suggest $K=10$. Ultimate $K=6$ was selected because it yeilded an *average silhouette width* that was closest to that for the suggested value and it is closer to 3 (the 'elbow'in the *within cluster sums of squares*) than the suggested $K$ from the *average silhouette width* method. 
 
 ```{r locMon,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon}Finding Optimal Number for Location - Month Clustering"}
 g1<-fviz_nbclust(check,FUN=hcut,method = 'wss')
@@ -124,13 +124,15 @@ kableExtra::kable_styling(knitr::kable(clustmat%>%spread(key=Month,value=cluster
   row.names = NA,col.names = NA),latex_options = "hold_position")
 ```
 
-```{r locMon2,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon2}Number of Rain Days and Variability in Rain Days accross Clusters"}
+```{r locMon2,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon2}Number of Rain Days and Variability in Rain Days across Clusters"}
 fviz_cluster(list(data=check,cluster=clust), geom = 'point',
              xlab = 'Rain Days (Standardized)',ylab = 'Variability in Rain Days (Standardized)',
              main = NULL,ggtheme = theme_bw())
 ```
 
-Table \@ref(tab:winddir) relates to the town of Cobar. It provides  the conditional probability of rain tomorrow (Yes) given the wind gust direction, as well as, the conditional probability of no rain tomorrow (NO) given the wind gust direction. Representing the Probability of rain tomorrow as $P(R)$ and the conditional probability of rain tomorrow given a wind gust direction of $D$ as $P(R/D)$, one notes that in some directions (such as NE, NNE and ESE) the $P(R/D)\geq P(R)$. This means that knowing the wind gust is coming from these directions the chances of correctly guessing $R$ - rain tomorrow is higher that correctly guessing $R$ when the wind gust direction in not revealed.
+Table \@ref(tab:winddir) relates to the town of Cobar. It provides  the conditional probability of rain tomorrow (Yes) given the wind gust direction, as well as, the conditional probability of no rain tomorrow (No) given the wind gust direction. Representing the Probability of rain tomorrow as $P(R)$ and the conditional probability of rain tomorrow given a wind gust direction of $D$ as $P(R/D)$, one notes that in some directions (such as NE, NNE and ESE) the $P(R/D)\geq P(R)$. This means that knowing the wind gust is coming from these directions the chances of correctly guessing $R$ - rain tomorrow is higher that correctly guessing $R$ when the wind gust direction in not revealed. Wind gust from these directions therefore increases the probability of having rain tomorrow. 
+
+Similar tables were constructed for other locations and for other wind direction variables (that is **WindDir9am** and **WindDir3am**). Binary classification variables **rainDir9am**, **rainDir3pm** and **rainDirGust** were created with Wind directions where $P(R/D)\geq P(R)$ catalogued as 'Yes'. Tables \@ref(tab:raindir1), \@ref(tab:raindir2) and \@ref(tab:raindir3) show the  probabilities of rain tomorrow conditioned on **rainDir9am**, **rainDir3pm** and **rainDirGust** respectively.
 
 ```{r winddir,echo=FALSE,warning=FALSE,message=FALSE}
 x1<-trainSet[trainSet$Location=="Cobar",]$RainTomorrow
@@ -158,8 +160,19 @@ x<-kable(ctable(trainSet$rainDirGust,trainSet$RainTomorrow,omit.headings = F)[2]
 x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c(" ","RainTomorrow"=3))%>%group_rows('rainDirGust',start_row = 1,end_row = 2,colnum = 1)
 ```
 
+These four engined features (**cluster**, **rainDir9am**, **rainDir3pm** and **rainDirGust** ) along with the twelve numeric features selected on the basis of 'separatedness', are used in developing predictive models for whether or not there will be rain tomorrow. Before this done however, each numeric variable is normalized by 'centering' (subtracting its mean from each observation)  and 'scaling' by its standard deviation.  
+
 ## Models and Estimation Techniques
-*Be sure to speak about scaleing and centering numeric features*
+###Logistic Model
+
+###Adaboost Method
+```{r tree,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:tree}Example of a Decision Tree"}
+tree_example<-rpart::rpart(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
+                      Sunshine+WindGustSpeed+Humidity3pm+Pressure3pm+
+                      Cloud3pm, 
+                    data = trainSet, method = 'class')
+rpart.plot::rpart.plot(tree_example, type = 4)
+```
 
 #Results
 ##Logistic Model
