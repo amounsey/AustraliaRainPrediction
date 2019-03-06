@@ -164,9 +164,40 @@ These four engined features (**cluster**, **rainDir9am**, **rainDir3pm** and **r
 
 ## Models and Estimation Techniques
 ###Logistic Model
+The functional for the 
+
+\begin{equation}
+\begin{gathered}
+ln\frac{p(x_i)}{1-p(x_i)}=\sum_{j=0}^{M}b_jx_{i,j} \\
+\\
+\text{alternatively in vector notation}\\
+\\
+ln\frac{p(\mathbf{x_i};\mathbf{\beta})}{1-p(\mathbf{x_i};\beta)}=\mathbf{x_i}\beta 
+\end{gathered}
+(\#eq:logistic)
+\end{equation}
+
+where:
+
+> $x_{i,0}=1$
+
+> $x_{i,j}$ represents the $i^{th}$ observation feature $j$, $\forall \; j= 1,2,...M$
+
+> $\mathbf{x_i}$ is a row-vector for observation $i$
+
+> $\beta$ is column-vector of parameters
+  
+Staying with vector notation and solving for $p(x_i)$ in \@ref(eq:logistic) one gets:
+
+\begin{equation}
+p(\mathbf{x_i};\mathbf{\beta})=\frac{e^{\mathbf{x_i}\beta}}{1+e^{\mathbf{x_i}\beta}}=\frac{1}{1+e^{-\mathbf{x_i}\beta}}
+(\#eq:logistic1)
+\end{equation}
+
+Equation \@ref(eq:logistic1) is a logistic function 
 
 ###Adaboost Method
-```{r tree,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:tree}Example of a Decision Tree"}
+```{r tree,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:tree}Example of a Decision Tree",results='asis'}
 tree_example<-rpart::rpart(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
                       Sunshine+WindGustSpeed+Humidity3pm+Pressure3pm+
                       Cloud3pm, 
