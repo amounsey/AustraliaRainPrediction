@@ -406,7 +406,7 @@ logis_cv_reduced<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+R
                   trControl=fitControl_logis)
 
 logis_cv_reduced
-# Optimal model from logis_cv_model has similar hyper-parameters and model performance as logis_cv
+# Optimal model from logis_cv has similar hyper-parameters and model performance as logis_cv_reduced
 # The reduced model specification is therefore favoured.
 rm(logis_cv)
 
@@ -575,6 +575,13 @@ confusionMatLogis
 
 confusionMatAdaboost<-confusionMatrix(testSet$predictAdaboost,testSet$RainTomorrow) # confusion matrix for adaboost prediction
 confusionMatAdaboost
+
+# testSet$predictHybrid<-ifelse(testSet$predictLogis=='Yes'&testSet$predictAdaboost=='Yes','Yes','No')
+# testSet$predictHybrid<-factor(testSet$predictHybrid,levels = c('Yes','No'))
+# levels(testSet$predictHybrid)
+# confusionMatHybrid<-confusionMatrix(testSet$predictHybrid,testSet$RainTomorrow) # confusion matrix for Hybrid prediction
+# 
+# confusionMatHybrid
 
 save.image('rda/datasets.rda')
 #*************************************************Mar 02***********************************************
