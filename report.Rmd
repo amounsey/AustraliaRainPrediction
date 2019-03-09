@@ -3,6 +3,9 @@ title: "Australia Next Day Rain Prediction"
 author: "Allister Mounsey"
 date: "24 February 2019"
 output: bookdown::pdf_document2
+bibliography: 'references.bib'
+biblio-style: 'chicago'
+link-citations: true
 ---
 
 ```{r setup, include=FALSE,warning=FALSE}
@@ -216,15 +219,19 @@ The *ROC* was used as the metric on which the model *trained*. The *ROC* is a cu
 
 1. Determining optimal values of *hyperparameters*. For logistic models there are two *hyperparameters*:
 
-    + $\alpha$ - *the mixing percentage* that controls how of each type of *penalties* is applied to the model.There two types of penalties for  avoiding overfitting, reducing variance of the prediction error and dealing with correlated predictors(reference H2Oai). *Least Absolute Shrinkage and Selection Operator (LASSO)* usually referred to as $l_1$ *regularization*- penalizes the sum of absolute coefficients (the $l_1$ norm) . With a high *tuning parameter value* $\lambda$ it will result significant (possibly all) coefficients being set to zero- that is *features* removed from the model (reference H2Oai). *Ridge Regression* usually referred as $l_2$ *regularization*- penalizes the sum of squares of the coefficients (the $l_2$ norm). $l-2$ *regularization* reduces coefficients simultaneously withot setting to zero, the extent of reduction is determined by the *tuning parameter* - $\lambda$.
+    + $\alpha$ - *the mixing percentage* that controls how of each type of *penalties* is applied to the model.There two types of penalties for  avoiding overfitting, reducing variance of the prediction error and dealing with correlated predictors [@H2O_1]. *Least Absolute Shrinkage and Selection Operator (LASSO)* usually referred to as $l_1$ *regularization*- penalizes the sum of absolute coefficients (the $l_1$ norm) . With a high *tuning parameter value* $\lambda$ it will result significant (possibly all) coefficients being set to zero- that is *features* removed from the model [@H2O_1]. *Ridge Regression* usually referred as $l_2$ *regularization*- penalizes the sum of squares of the coefficients (the $l_2$ norm). $l-2$ *regularization* reduces coefficients simultaneously withot setting to zero, the extent of reduction is determined by the *tuning parameter* - $\lambda$.
     
     + $\lambda$ -sometimes called the *tuning/regularization/shrinkage parameter* controls the strength of *penalty* to be applied to the model.  
 
 2. If appropriate further reducing in the number *features* used.
 
-The (final) *trained* model was then evaluated in the last stage of the *nested cross validation* to determine expected model performance. The expected performance of the *trained* logistic model was compared to that from the *ensemble* model to determine if it merits *testing* (final evaluation using the *testSet*) and probably ultimately being placed into production.
+The (final) *trained* model was then evaluated in the last stage of the *nested cross validation* to determine expected model performance. The expected performance of the *trained* logistic model was compared to that from the *Adaboost* classifier to determine if it merits *testing* (final evaluation using the *testSet*) and probably ultimately being placed into production.
 
-###Adaboost Method
+###Boosted Decision Trees Model
+*Decision trees* splits the observations of a set of *features* recursively to make predictions about a *label* (see figure \@ref(fig:tree) for an example). Each split minimizes *entropy* - roughly speaking: the degree of mixing of ojects with different *label* values [@ricaud2017]. Splitting continues until some stop criterion is met. *Decision tree* algorithms generally produce weak classifiers - meaning they are slightly better than guessing. *Boosting* is a method of producing and combining many weak classifers to make a strong clasifier [@woodruff2017]. In *Gradient boosting* trees are created iteratively. the weak classifier (the current decision tree) trains on the pseudo-residuals of the *strong*/*base* learner (the the model resulting from aggregating past trees). The contribution of the weak learner to the (new) *strong*/*base learner* is determined by a *gradient descent* optimization process, where its contribution is that which minimizes the overall error of the *strong*/*base* learner [@moise2017]. *Stochastic gradient boosting*- the technique applied here - is a modification to *gradient boosting* where at each iteration a sample of the training data is selected randomly without replacement. This randomly selected sample is then used to fit the *base learner* and compute the model update for the current iteration'[@friedman2002]. @friedman2002 suggests that the introduction of randomization  substantially improves accuracy of *gradient boosting*.
+
+The boosted decision tree model was *trained* in a *5-fold nested cross validation* framework where optimal values for *hyperparameters*  were obtained and futher *feature* selction (elimination) was conducted. Again, the *ROC* was used as the optimizing metric in *training*. The *Stochastic Gradient Boosting* algorithm implimented via the *gbm* [@greenwell2018] and *caret* [@kuhn2018] packages, has a default value of 0.1 for the shrinkage ($\lambda$) *hyperparameter*, this was was maintained.The  minimum number of observation in each node (n.minobsinnode) was also kept at its default value of of 10 observations. The *ROC* was optimized by altering interaction depth and number of trees. The *varImp* in the *caret* package was used to further suggest *features* that might be eliminated from the model.
+
 ```{r tree,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:tree}Example of a Decision Tree",results='asis'}
 tree_example<-rpart::rpart(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
                       Sunshine+WindGustSpeed+Humidity3pm+Pressure3pm+
@@ -234,26 +241,28 @@ rpart.plot::rpart.plot(tree_example, type = 4)
 ```
 
 #Results
-##Logistic Model
-result from Logistic hyper parameter tuning
+##Expected Performance - Logistic Model
+Table \@ref(tab:logistic) shows  the result of *Hyperparameter* tuning on the full (all 16 *features*) Logistic model. It indicates that $l_2$ regularization ($\alpha=1$) should be applied with a relatively small *regularization parameter* ($\lambda=0.0004$). The importance of individual variables to the logistic was also examined.
 
 ```{r logistic, echo=FALSE,warning=F,message=FALSE}
 kableExtra::kable_styling(knitr::kable(bestTune_logis_full,booktabs=T,caption ='Optimal Hyperparameter Selection Using Logistic Model 10-fold nested Cross Validation'),latex_options = 'hold_position')
 
 ```
 
+Figure \@ref(fig:varImpLogistic) shows the relative value of the coefficient (relative to the coefficient with the highest value) in the model (direct comparision of coefficient is possible as *features* have been *normalized*). Features with a variable importance  of less than 3 (**Temp3pm**, **Rainfall**, **Humidity9am** and **Evaporation** ), were dropped to produce a *reduced model*. The *reduced model* was again trained using *cross-validation*. The *ROC* for the *reduced model* with the best tuned *hyperparameters* was very close to that of the *full model* and the best tuned *hyperparameters* were identical to those in table \@ref(tab:logistic). On the basis of the similarity in *ROC* the reduced model was preferred as in theory it reduces that chances of *overfitting*.  
+
 ```{r varImpLogistic,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:varImpLogistic}Variable Importance for Logistic Model"}
 plot(var_imp_logistics)
-
 ```
-we drop ... the optimal hyperparameters values were the same with no significant change in ROC 
+
+Using the *reduced model*  and its best tuned *hyperparameters*, *10-fold cross validation* was employed to determine what the expected performance of the best tuned model might be. Table \@ref(tab:logisticncvExpected) shows the summary statistics. The table shows that the *ROC* is expected to have an *AUC* of 0.8915 with a stardard deviation of 0.0039 and that using the default cut-off (that is positive label if $P(\mathbf{x})>=0.5$) *sensitivity* or *recall* is expected to be 0.8069 and *specificity* 0.8076 with standard deviations of 0.0061 and 0.0096 respectively.
 
 ```{r logisticncvExpected,echo=FALSE,warning=F,message=FALSE}
 kableExtra::kable_styling(knitr::kable(logis_cv_outer$results,booktabs=T, caption = 'Expected Performance of the Logistic Model'),latex_options = 'hold_position')
 
 ```
 
-##Adaptive Boosting Model
+##Expected Performance- Boosted Decision Tree Model
 
 Tuning parameter 'shrinkage' was held constant at a value of 0.1
 Tuning parameter 'n.minobsinnode' was held constant at a value of 10
@@ -292,6 +301,8 @@ kableExtra::kable_styling(knitr::kable(confusionMatLogis[['table']], booktabs=T,
 kableExtra::kable_styling(knitr::kable(confusionMatAdaboost[['table']], booktabs=T, caption = "Confusion Matrix for AdaBoost Model"),latex_options = 'hold_position')
 ```
 
-#Conclusion 
+#Conclusion
+
+#References
 
 

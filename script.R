@@ -55,7 +55,7 @@ library(gbm)
 library(pROC)
 #library(e1071)
 #library(MLmetrics)
-load('rda/datasets_wip.rda')
+load('rda/datasets.rda')
 
 # Required Functions ####
 labelFinder<-function(x,df=weather){
@@ -390,6 +390,7 @@ logis_cv
 
 var_imp_logistics<-varImp(logis_cv)
 bestTune_logis_full<-logis_cv$bestTune
+row.names(bestTune_logis_full)<-'Optimal'
 print(var_imp_logistics)
 plot(var_imp_logistics)
 
@@ -455,8 +456,9 @@ plot.roc(logis_cv_outer$pred$obs,logis_cv_outer$pred$Yes, print.thres=T) # Plot 
 logis_cv_outer$results
 rm(logis_cv_reduced)
 
-# Machine Learning - AdaBoost (Adaptive Boosting) ####
+# Machine Learning - bdt (Boosted Decision Trees) ####
 
+# change adaboost to bdt (boosted decision tree)
 
 fitControl_adaboost <- trainControl(method = "cv",
                            number = 5,
