@@ -458,9 +458,7 @@ rm(logis_cv_reduced)
 
 # Machine Learning - bdt (Boosted Decision Trees) ####
 
-# change adaboost to bdt (boosted decision tree)
-
-fitControl_adaboost <- trainControl(method = "cv",
+fitControl_boost <- trainControl(method = "cv",
                            number = 5,
                            sampling = 'up',
                            returnResamp="all",
@@ -469,51 +467,52 @@ fitControl_adaboost <- trainControl(method = "cv",
                            summaryFunction = twoClassSummary)
 
 set.seed(1234)
-adaboost_cv<- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
+boost_cv<- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
                             Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
                             Cloud9am+Cloud3pm+Temp3pm, 
                           data = trainSet,  
-                          method = "gbm", # Gradient boosted tree model
-                          trControl = fitControl_adaboost, 
+                          method = "gbm", # Stochastic Gradient boosted tree model
+                          trControl = fitControl_boost, 
                           verbose = FALSE,
                           metric="ROC")
-adaboost_cv
+boost_cv
 
-var_imp_adaboost = varImp(adaboost_cv)
-bestTune_adaboost_full<-adaboost_cv$bestTune
-print(var_imp_adaboost)
-plot(var_imp_adaboost)
+var_imp_boost = varImp(boost_cv)
+bestTune_boost_full<-boost_cv$bestTune
+print(var_imp_boost)
+plot(var_imp_boost)
 
-# Reduced model based on variable importance cutoff =3
+# # Reduced model based on variable importance cutoff =3
+# 
+# set.seed(1234)
+# bost_cv_reduced <- train(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
+#                                     Sunshine+WindGustSpeed+Humidity3pm+Pressure3pm+
+#                                     Cloud3pm, 
+#                           data = trainSet,  
+#                           method = "gbm", # Stochastic Gradient boosted tree model
+#                           trControl = fitControl_boost, 
+#                           verbose = FALSE,
+#                           metric="ROC")
+# 
+# bost_cv_reduced # ROC (0.8914) very similar to ROC for the boost_cv(0.8936)  
+# rm(boost_cv) # Choose redcued model over full model
 
-set.seed(1234)
-adabost_cv_reduced <- train(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
-                                    Sunshine+WindGustSpeed+Humidity3pm+Pressure3pm+
-                                    Cloud3pm, 
-                          data = trainSet,  
-                          method = "gbm", # Gradient boosted tree model
-                          trControl = fitControl_adaboost, 
-                          verbose = FALSE,
-                          metric="ROC")
-
-adabost_cv_reduced # ROC (0.8914) very similar to ROC for the adaboost_cv(0.8936)  
-rm(adaboost_cv) # Choose redcued model over full model
-
+#skip reduce step as boosting is 
 ## Set the hyperparameter grid to the optimal values from the inside loop
-paramGrid_adaboost <- expand.grid(n.trees = c(150), interaction.depth = c(3), shrinkage = c(0.1), n.minobsinnode = c(10))
+paramGrid_boost <- expand.grid(n.trees = c(150), interaction.depth = c(3), shrinkage = c(0.1), n.minobsinnode = c(10))
 
 set.seed(5678)
-adaboost_cv_outer <- train(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
-                             Sunshine+WindGustSpeed+Humidity3pm+Pressure3pm+
-                             Cloud3pm, 
+boost_cv_outer <- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+RainToday+Rainfall+
+                          Evaporation+Sunshine+WindGustSpeed+Humidity9am+Humidity3pm+Pressure9am+Pressure3pm+
+                          Cloud9am+Cloud3pm+Temp3pm,  
                            data = trainSet, 
                            method = "gbm", # Gradient boosted tree model
-                           trControl = fitControl_adaboost, 
-                           tuneGrid = paramGrid_adaboost, 
+                           trControl = fitControl_boost, 
+                           tuneGrid = paramGrid_boost, 
                            verbose = FALSE,
                            metric="ROC")
 
-print_metrics_adaboost = function(mod){
+print_metrics_boost = function(mod){
   means = c(apply(mod$resample[,1:3], 2, mean), n.trees = mod$resample[1,4], interaction.depth = mod$resample[1,5], 
             shrinkage = mod$resample[1,6], n.minobsinnode = mod$resample[1,7], Resample = 'Mean')
   stds = c(apply(mod$resample[,1:3], 2, sd), n.trees = mod$resample[1,4], interaction.depth = mod$resample[1,5], 
@@ -522,10 +521,10 @@ print_metrics_adaboost = function(mod){
   out[,1:3] = lapply(out[,1:3], function(x) round(as.numeric(x), 3))
   out
 }
-print_metrics_adaboost(adaboost_cv_outer)
+print_metrics_boost(boost_cv_outer)
 
 pdf('figs/rocPlot.pdf',width = 7,height = 6)
-plot.roc(adaboost_cv_outer$pred$obs,adaboost_cv_outer$pred$Yes,lty=3,print.thres=T, col='blue',print.thres.pch=8,
+plot.roc(boost_cv_outer$pred$obs,boost_cv_outer$pred$Yes,lty=3,print.thres=T, col='blue',print.thres.pch=8,
          print.thres.adj=0, print.thres.cex=0.7, print.thres.col='blue')
 plot.roc(logis_cv_outer$pred$obs,logis_cv_outer$pred$Yes,lty=2, print.thres=T,add=T, col='red',print.thres.pch=1,
          print.thres.adj=1, print.thres.cex=0.7, print.thres.col='red')
@@ -571,12 +570,12 @@ testSet$cluster<-as.factor(testSet$cluster) # making cluster a factor variable
 summary(testSet)
 # Predicting & Final Evaluation  ####
 testSet$predictLogis<-predict(logis_cv_outer,newdata = testSet)
-testSet$predictAdaboost<-predict(adaboost_cv_outer,newdata = testSet)
+testSet$predictBoost<-predict(boost_cv_outer,newdata = testSet)
 confusionMatLogis<-confusionMatrix(testSet$predictLogis,testSet$RainTomorrow) # confusion matrix for logistic prediction
 confusionMatLogis
 
-confusionMatAdaboost<-confusionMatrix(testSet$predictAdaboost,testSet$RainTomorrow) # confusion matrix for adaboost prediction
-confusionMatAdaboost
+confusionMatBoost<-confusionMatrix(testSet$predictBoost,testSet$RainTomorrow) # confusion matrix for adaboost prediction
+confusionMatBoost
 
 # testSet$predictHybrid<-ifelse(testSet$predictLogis=='Yes'&testSet$predictAdaboost=='Yes','Yes','No')
 # testSet$predictHybrid<-factor(testSet$predictHybrid,levels = c('Yes','No'))
