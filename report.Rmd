@@ -286,15 +286,28 @@ knitr::include_graphics('figs/rocPlot.pdf')
 
 Results from *nested cross-validation* - as interesting as they may be - are not the ones that ultimately matter. The 'ultimate' test is, model performance against the **testSet**, attention is now turned to this matter.
 
+Tables \@ref(tab:cmLogis) and \@ref(tab:cmBoost) present the *confusion matrix* for the Logistic and the Boosted Decision Tree models respectively. Both models performed  creditably, correctly predicting approximately 81% of both the *positive cases* (**RainTomorrow** = Yes) and *negative cases*.  
+
 ```{r cmLogis, echo=FALSE,warning=F,message=FALSE}
-kableExtra::kable_styling(knitr::kable(confusionMatLogis[['table']], booktabs=T, caption = "Confusion Matrix for Logistic Model"),latex_options = 'hold_position')
+x<-knitr::kable(confusionMatLogis[['table']], booktabs=T, caption = "Confusion Matrix for Logistic Model",'latex')
+x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c('','Reference'=2))%>%group_rows('Prediction',start_row = 1,end_row = 2,colnum = 1)
 ```
 
-```{r cmAdaboost, echo=FALSE,warning=F,message=FALSE}
-kableExtra::kable_styling(knitr::kable(confusionMatBoost[['table']], booktabs=T, caption = "Confusion Matrix for AdaBoost Model"),latex_options = 'hold_position')
+```{r cmBoost, echo=FALSE,warning=F,message=FALSE}
+x<-knitr::kable(confusionMatBoost[['table']], booktabs=T, caption = "Confusion Matrix for Boosted Decision Tree Model",'latex')
+x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c('','Reference'=2))%>%group_rows('Prediction',start_row = 1,end_row = 2,colnum = 1)
+
+```
+
+Table \@ref(tab:modelcomp) readily allows for a more clinical assessment of the usefulness of both models. The table confirms the usefulness of both models. The accuracy of both models beat the naive accuracy (assigning all observation to the modal class of the *label* variable). More important, *recall* and *specificity* are  high- approximately 81% each in both models. Both models have a tendancy to *over detect* positive case with *Detection Prevalance* being about 32.7% in both models as opposed to (the true) *Prevalence* of 21.9%.     
+
+```{r modelcomp, echo=FALSE,warning=F,message=FALSE}
+x<-kable(compSummary, booktabs=T,caption = 'Summary of Model Performance',digits = 4,'latex')
+x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c('','Model'=2))%>%group_rows('Accuracy Tests',1,7)%>%group_rows('Other Metrics', 8,18)
 ```
 
 #Conclusion
+Both models perform similiarly well. the *Sensitivity* and *Specificity* of both models are high - approximately 81%. Both models however have the tendancy to *over detect* positive cases, resulting in low *Positive Prediction Rate* of approximately 54%. If the net cost associated with a *false positive* is low relative the net cost of *false negative*  this may not be a significant challenge to the usefulness of the model ( eg. carrying an umbrella when it didn't rain vs. not carrying and umbrella when it did rain). The *negative prediction value* is quite high  (approx. 94%), meaning there is only about a 6% chance of a negative prediction (no rain tomorrow) being wrong.
 
 #References
 

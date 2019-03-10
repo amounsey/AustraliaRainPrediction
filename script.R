@@ -581,6 +581,22 @@ confusionMatLogis
 confusionMatBoost<-confusionMatrix(testSet$predictBoost,testSet$RainTomorrow) # confusion matrix for adaboost prediction
 confusionMatBoost
 
+compSummary_logis<-as.data.frame(confusionMatLogis[['overall']])
+names(compSummary_logis)<-"Logistic"
+compSummary_logis1<-as.data.frame(x=confusionMatLogis[['byClass']])
+names(compSummary_logis1)<-"Logistic"
+compSummary_logis<-rbind(compSummary_logis,compSummary_logis1)
+
+compSummary_boost<-as.data.frame(confusionMatBoost[['overall']])
+names(compSummary_boost)<-"Boosted_Decision_Tree"
+compSummary_boost1<-as.data.frame(x=confusionMatBoost[['byClass']])
+names(compSummary_boost1)<-"Boosted_Decision_Tree"
+compSummary_boost<-rbind(compSummary_boost,compSummary_boost1)
+
+compSummary<-cbind.data.frame(compSummary_logis,compSummary_boost)
+rmlist<-ls(pattern = '^compSummary_')
+rm(list = rmlist)
+
 # testSet$predictHybrid<-ifelse(testSet$predictLogis=='Yes'&testSet$predictAdaboost=='Yes','Yes','No')
 # testSet$predictHybrid<-factor(testSet$predictHybrid,levels = c('Yes','No'))
 # levels(testSet$predictHybrid)
