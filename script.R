@@ -482,6 +482,7 @@ bestTune_boost_full<-boost_cv$bestTune
 print(var_imp_boost)
 plot(var_imp_boost)
 
+row.names(bestTune_boost_full)<-"Optimal"
 # # Reduced model based on variable importance cutoff =3
 # 
 # set.seed(1234)
@@ -522,6 +523,9 @@ print_metrics_boost = function(mod){
   out
 }
 print_metrics_boost(boost_cv_outer)
+
+boostExpected<-boost_cv_outer$results
+row.names(boostExpected)<-NULL
 
 pdf('figs/rocPlot.pdf',width = 7,height = 6)
 plot.roc(boost_cv_outer$pred$obs,boost_cv_outer$pred$Yes,lty=3,print.thres=T, col='blue',print.thres.pch=8,

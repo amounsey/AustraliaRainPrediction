@@ -263,35 +263,28 @@ kableExtra::kable_styling(knitr::kable(logis_cv_outer$results,booktabs=T, captio
 ```
 
 ##Expected Performance- Boosted Decision Tree Model
-Table \@ref(tab:gbmboost)
-Tuning parameter 'shrinkage' was held constant at a value of 0.1
-Tuning parameter 'n.minobsinnode' was held constant at a value of 10
-ROC was used to select the optimal model using the largest value.
-The final values used for the model were n.trees = 150, interaction.depth = 3, shrinkage = 0.1 and n.minobsinnode = 10.
+Table \@ref(tab:gbmboost) shows the best tuned *hyperparameters* from the *boosted decision tree* model estimated through *stochastic gradient boosting*. Optimization was performed on the number of trees (n.trees) and the interaction depth, which were tuned at 150 and 3 respectively. *Shrinkage* and the minimum number of observations in each was held constant at default values.
 
 ```{r gbmboost, echo=FALSE,warning=F,message=FALSE}
-kableExtra::kable_styling(knitr::kable(bestTune_boost_full,booktabs=T,caption ='Optimal Hyperparameter Selection for AdaBoost Model Using 5-fold nested Cross Validation'),latex_options = 'hold_position')
+kableExtra::kable_styling(knitr::kable(bestTune_boost_full,booktabs=T,caption ='Optimal Hyperparameter Selection for Boosted Decision Tree Model Using 5-fold nested Cross Validation'),latex_options = 'hold_position')
 ```
 
-```{r varImpBoost,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:varImpLogistic}Variable Importance for AdaBoost Model"}
-plot(var_imp_boost)
-
-```
-
-the optimal hyperparameters values were the same with no significant change in ROC.The final values used for the model were n.trees = 150, interaction.depth = 3, shrinkage = 0.1 and n.minobsinnode = 10.
+The 'best tuned' *hyperparameters* values were used in *5-fold cross validation* framework to determine what the expected performance of the model . Table \@ref(tab:BoostncvExpected) shows the summary statistics from this exercise. The *ROC* is expected to have an *AUC* of 0.8938 with a stardard deviation of 0.0044 and that using the default cut-off (that is, a positive label if $P(\mathbf{x})>=0.5$) *sensitivity* or *recall* is expected to be 0.8083 and *specificity* 0.8081 with standard deviations of 0.0068 and 0.0066 respectively. 
 
 ```{r BoostncvExpected,echo=FALSE,warning=F,message=FALSE}
-kableExtra::kable_styling(knitr::kable(boost_cv_outer$results,booktabs=T, caption = 'Expected Performance of the AdaBoost Model'),latex_options = 'hold_position')
+kableExtra::kable_styling(knitr::kable(boostExpected%>%select(-shrinkage,-n.minobsinnode),booktabs=T, caption = 'Expected Performance of the Boosted Decision Tree Model'),latex_options = 'hold_position')
 
 ```
 
 ##Comparing Models
-Expected performance
+Figure \@ref(fig:rocPlot) the estimated (expected) *ROCs* from the *cross-validation* exercise described above.  The labelled points on the chart indicate the cut-off points(and the corresponding *specificity*, *sensitivity* vector) that will maximize *accurracy*. From the figure the expected *ROCs* are almost identical with that for the *boosted decision tree* model being marginally higher. Unlike the logisitic model, the default cut-off (that is, a positive label if $P(\mathbf{x})>=0.5$) is not the cut-off point that generates the highest *accuracy* in the *boosted decision tree* model. This notwithstanding, the default cut-off are maintained in the remainder of this assessment because it seems to produce a results with an equal balance between *recall* and *specificity* which has a sought of 'natural' appeal.
 
-```{r rocPlot,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:rocPlot}ROC for Logistic (Red-Dashed) and ROC for AdaBoost (Blue-Dotted) Models"}
+```{r rocPlot,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:rocPlot}ROC for Logistic (Red-Dashed) and ROC for Boosted Decision Tree (Blue-Dotted) Models"}
 knitr::include_graphics('figs/rocPlot.pdf')
 
 ```
+
+Results from *nested cross-validation* - as interesting as they may be - are not the ones that ultimately matter. The 'ultimate' test is, model performance against the **testSet**, attention is now turned to this matter.
 
 ```{r cmLogis, echo=FALSE,warning=F,message=FALSE}
 kableExtra::kable_styling(knitr::kable(confusionMatLogis[['table']], booktabs=T, caption = "Confusion Matrix for Logistic Model"),latex_options = 'hold_position')
