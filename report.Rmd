@@ -25,11 +25,11 @@ gc()
 #Introduction
 In this paper a rain prediction model for various locations in Australia is developed using daily weather data supplied by the Australia Bureau of Meteorology for the period November 2007 to June 2017. Specifically it predicts whether tomorrow's precipitation in a given location will exceed 1 mm - in which case it is labeled **Yes**, otherwise **No**. In selecting a suitable model, binary clasification techniques based on *Logistic Regression* and *Boosted Decision Trees* are explored. The *Receiver Operating Characteristic (ROC)* was the metric used in training these models. Model diagnistics suggests both models are useful predictors with the estimated *Area Under the Curve (AUC)*  being 0.892 and 0.894 in favor of the model based on *Boosted Decision Trees*. This suggest that the model based on *Boosted Decision Trees* should be selected based on its (albeit marginally) superior *ROC*. Applying the "preferred" model to the *test dataset*  (using the default cut-off of 0.5) result in a *True Positive Rate (Recall)* of 80.9% and a 80.8% *True Negative Rate (Specificity)*. 
 
-The remained of the paper is structured as follows. Section 2 outlines in greater the models and techniques employed as well as the analysis that assisted in arriving at the articulated models. Section 3 presents the results of the models and conclusions are presented in section 4.
+The remained of the paper is structured as follows. Section 2 outlines the models and techniques employed in greater detail. It also outlines the analysis that assisted in arriving at the articulated models. Section 3 presents the results of the models and conclusions are presented in section 4.
 
 #Methods and Analysis
 ##Data
-The was obtained from Kaggle, the following is the link to the dataset: <https://www.kaggle.com/jsphyg/weather-dataset-rattle-package/home>. The **weather** dataset contains 142,193 daily weather observations from 49 weather stations across Australia over period covering November 2007 to June 2017. The following are 24 orginal variables in this dataset:
+The was obtained from Kaggle, the following is the link to the dataset: <https://www.kaggle.com/jsphyg/weather-dataset-rattle-package/home>. The **weather** dataset contains 142,193 daily weather observations from 49 weather stations across Australia over the period November 2007 to June 2017. The following are 24 orginal variables in this dataset:
 
 * **Date**-The date of observation,
 * **Location**-The common name of the location of the weather station,
@@ -58,39 +58,39 @@ The was obtained from Kaggle, the following is the link to the dataset: <https:/
 
 The variable ***RISK_MM*** was deleted from the dataset based on the cautionary note from the Kaggle webpage advising that this variable should be excluded from binary classification models because it will "leak the answers to your model and reduce its predictability".
 
-The variables **WindDir9am/3pm** can legitimately take on an NA value in the absence of wind- that is **WindSpeed9am/3pm = 0** respectively. This is addressed by creating a new factor level called *NoDir* for these cases. After accounting for the *NoDir* cases in WindDir variables, approximately 60% of cases (rows) in the dataset contained atleast one or more missing values. Quick examination of these cases reveal a tendency for some stations (**Locations**) to consistently report NAs for some variables,in such cases imputation does seem advisable. All these missing cases were therefore dropped, resulting in the dataset being reduced to 58,079 observations over 26 unique **Locations** as opposed to 49 orginally. The analysis and results that follow is for these 26 locations using the truncated dataset.
+The variables **WindDir9am/3pm** can legitimately take on NA values in the absence of wind, that is, when **WindSpeed9am/3pm = 0** respectively. This is addressed by creating a new factor level called *NoDir* for these cases. After accounting for the *NoDir* cases in the WindDir variables, approximately 60% of cases (rows) in the dataset contained atleast one or more missing values. Quick examination of these cases reveal a tendency for some stations (**Locations**) to consistently report NAs for some variables,in such cases imputation does seem advisable. All these missing cases were therefore dropped, resulting in the dataset being reduced to 58,079 observations over 26 unique **Locations** as opposed to 49 orginally. The analysis and results that follow is for these 26 locations using the truncated dataset.
 
 Having cleaned the **weather** dataset, it was then randomly split in an 8:2 ratio. The larger dataset was used for training the models and is herein referred to as the **trainSet** while the remaining 20% was reserved exclusively for testing purposed (the **testSet**). All data analysis was conducted only on the **trainSet**.
 
 ##Data Analysis
-In thinking of constructing a rain prediction model for Australia, rudimentary inquiry into rainfall partners across the continent was conducted. Figure \@ref(fig:map) represents an insightfully summary of rainfall pattern across the country. The figure shows progressively lower number of raindays as on moves inland from the northern, eastern and southern coast, with interior and western regions having very few rain days.  
+In thinking of constructing a rain prediction model for Australia, rudimentary inquiry into rainfall partners across the continent was conducted. Figure \@ref(fig:map) represents an insightfully summary of rainfall pattern across the country. The figure shows progressively lower number of raindays as one moves inland from the northern, eastern and southern coasts, with interior and western regions having very few rain days.  
 
 ```{r map,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:map}Rain Days across Australia \\ Source: <http://www.bom.gov.au/jsp/ncc/climate_averages/raindays/index.jsp>" }
 knitr::include_graphics('figs/aussiemap.pdf')
 ```
 
-Another important weather feature is the seasonal patterns in rainfall. Figure \@ref(fig:seasonal) illustrates two readily observed seasonal rain patterns. In some regions like Darwin there is a Summer (Southern Hemisphere) Monsoon - where over period December to March there is significantly increased rainfall, both in terms of volume and the number of rain days in the month. While in areas like Portland there is a Winter Monsoon starting around May and ending in September.
+Another important weather feature is the seasonal patterns in rainfall. Figure \@ref(fig:seasonal) illustrates two readily observed seasonal rain patterns. In some regions like Darwin there is a Summer (Southern Hemisphere) Monsoon - where over the period December to March there is significantly increased rainfall, both in terms of volume and the number of rain days in the month. While in areas like Portland there is a Winter Monsoon starting around May and ending in September.
 
-Figures \@ref(fig:map) and \@ref(fig:seasonal) points to the possibility that combinations of location and months may be jointly predictive of the label- **RainTomorrow**. For example, Darwin in the month of January (Darwin-January), any given day typically has a $\frac{20}{30}$ chance of rain where as in Portland-January the chance is typically $\frac{5}{30}$. The contrast is however reversed if Portland-July and Darwin-July are examined. This phenomenon is referenced here as *Location-Month Effect* will be returned to in the next sub-section.
+Figures \@ref(fig:map) and \@ref(fig:seasonal) points to the possibility that combinations of location and months may be jointly predictive of the *label* - **RainTomorrow**. For example, Darwin in the month of January (Darwin-January), any given day typically has a $\frac{20}{30}$ chance of rain where as in Portland-January the chance is typically $\frac{5}{30}$. The contrast is however reversed if Portland-July and Darwin-July are examined. This phenomenon, referenced here as *Location-Month Effect*, will be returned to in the next sub-section.
 
 ```{r seasonal,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:seaonal}Monthly Rainfall Patterns by Location"}
 knitr::include_graphics('figs/seasonal.pdf')
 ```
 
 ##Feature Selection and Engineering
-Each numeric *feature* in the **trainSet** was examine to determine the extent to which it separated along *label* values - that is the degree to which the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'Yes' is different from the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'No'. This examination was conducted at two ways: (1) using *box-plots* and (2) using the *Kolmogorov–Smirnov test (KS test)*. Some *features* are 'well separated' as can be observed in figure \@ref(fig:wellsep). This figure shows that the distribution of **Humidity3pm** conditioned on **RainTomorrow**= 'Yes' is shifted to the right (that it typically contains higher values) of that which is conditioned on **RainTomorrow**= 'No'. **Clouds3pm** is similarly well separated. 
+Each numeric *feature* in the **trainSet** was examine to determine the extent to which it is separated along *label* values - that is the degree to which the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'Yes' is different from the *conditional distribution* of *feature* $X$ given **RainTomorrow**= 'No'. This examination was conducted at two ways: (1) using *box-plots* and (2) using the *Kolmogorov–Smirnov test (KS test)*. Some *features* are 'well separated' as can be observed in figure \@ref(fig:wellsep). This figure shows that the distribution of **Humidity3pm** conditioned on **RainTomorrow**= 'Yes' is shifted to the right (that it typically contains higher values) of that which is conditioned on **RainTomorrow**= 'No'. **Clouds3pm** is similarly well separated. 
 
 ```{r wellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:wellsep}Examples of Some Well Separated Cases"}
 knitr::include_graphics('figs/wellsep.pdf')
 ```
 
-Some examples of 'not well separated' features are illustrated in figure \@ref(fig:notwellsep). In figure \@ref(fig:notwellsep) it is easily observed that the degree of distributional overlap is high across case conditioned on the outcome of the *Label* -**RainTomorrow**.
+Some examples of 'not well separated' features are illustrated in figure \@ref(fig:notwellsep). In figure \@ref(fig:notwellsep) it is easily observed that the degree of distributional overlap is high across cases conditioned on the outcome of the *Label* -**RainTomorrow**.
 
 ```{r notwellsep,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:notwellsep}Examples of Some **NOT** Well Separated Cases"}
 knitr::include_graphics('figs/notwellsep.pdf')
 ```
 
-The test statistic - *D* for the *KS test* was used to determine the relative strength (degree) of 'separatedness' as well as to determine a cut-off point for what should be considered as reasonably 'separated' *feature*. The cut-off point choosen was $D=0.1$. *Features* with $D\geq 0.1$ were considered 'well-separated' and were selected as *features* to be used in constructing the models.
+The test statistic - *D* for the *KS test* was used to determine the relative strength (degree) of 'separatedness', as well as, to determine a cut-off point for what should be considered as reasonably 'separated' *features*. The cut-off point choosen was $D=0.1$. *Features* with $D\geq 0.1$ were considered 'well-separated' and were selected as *features* to be used in constructing the models.
 
 ```{r sepNumvar,echo=FALSE,warning=FALSE}
 kableExtra::kable_styling(knitr::kable(ks,booktabs = TRUE,
@@ -98,15 +98,14 @@ kableExtra::kable_styling(knitr::kable(ks,booktabs = TRUE,
   row.names = NA,col.names = NA),latex_options = "hold_position")
 ```
 
-The *Location-Month Effect (LME)* referred to previous may prove to be predictive of the *Label*. Since there are 26 locations in the **trainSet** should an attempt be made to directly leverage the LME at total of ($26 \times 12$) 312 factor levels must created and more critically 311 of them must be estimated.  To overcome the computational cost of this a *clustering* approach is employed to simultaneously leverage the LME while reducing computational load.
+The *Location-Month Effect (LME)*, referred to previously, may prove to be predictive of the *Label*. Since there are 26 locations in the **trainSet**, an attempt to directly leverage the LME would entail creating a total of 312 ($26 \times 12$) factor levels  and more critically estimating 311 of them.  To overcome this computational cost, a *clustering* approach is employed to simultaneously leverage the LME while reducing computational load.
 
 The follow steps outline the procedure employed in computing these clusters:
 
-* A dataset of  number of Rain Days in each *Location-Month* group is computed by grouping the *trainSet* by **Location** and **Month** (the variable **Month** is created by extracted the month from each **Date** observation ) 
-* The Mean and Standard Deviation of this quantity is computed for each *Location-Month* group
-* K-means cluster is performed on these 312 paired observations
+* A dataset of the  number of Rain Days and its standard deviation in each *Location-Month* group is computed by grouping the *trainSet* by **Location** and **Month** (the variable **Month** is created by extracted the month from each **Date** observation). 
+* K-means cluster is performed on these 312 paired observations.
 
-In selecting an optimal number of clusters (*K*) by using the *within cluster sums of squares* and  *average silhouette* methods. Figure \@ref(fig:locMon), shows the results using a maximum cut-off of 10. An 'elbow' at $K=3$ is identified in the *within cluster sums of squares*, while the *average silhouette* suggest $K=10$. Ultimate $K=6$ was selected because it yeilded an *average silhouette width* that was closest to that for the suggested value and it is closer to 3 (the 'elbow'in the *within cluster sums of squares*) than the suggested $K$ from the *average silhouette width* method. 
+The number of clusters (*K*) was selected using the *within cluster sums of squares* and  *average silhouette* methods as guides. Figure \@ref(fig:locMon), shows the results using a maximum cut-off of 10. An 'elbow' at $K=3$ is identified in the *within cluster sums of squares*, while the *average silhouette* suggest $K=10$. Ultimate $K=6$ was selected because it yeilded an *average silhouette width* that was closest to that of the suggested value and it is closer to 3 (the 'elbow'in the *within cluster sums of squares*) than the suggested $K$ from the *average silhouette width* method. 
 
 ```{r locMon,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:locMon}Finding Optimal Number for Location - Month Clustering"}
 g1<-fviz_nbclust(check,FUN=hcut,method = 'wss')
@@ -114,7 +113,7 @@ g2<-fviz_nbclust(check,FUN=hcut,method = 'silhouette')
 gridExtra::grid.arrange(g1,g2, ncol=1)
 ```
 
-Figure \@ref(fig:locMon2) shows the (mean) number of rain days and the variability of rain days across these clusters. Table \@ref(tab:locMon1) provides **Location** and **Month** composition of each cluster. 
+Figure \@ref(fig:locMon2) shows the number of rain days and the variability of rain days across these clusters. Table \@ref(tab:locMon1) provides **Location** and **Month** composition of each cluster. 
 
 ```{r locMon1,echo=FALSE,warning=FALSE}
 clustmat<-trainSet%>%group_by(Location,Month)%>%
@@ -133,17 +132,16 @@ fviz_cluster(list(data=check,cluster=clust), geom = 'point',
              main = NULL,ggtheme = theme_bw())
 ```
 
-Table \@ref(tab:winddir) relates to the town of Cobar. It provides  the conditional probability of rain tomorrow (Yes) given the wind gust direction, as well as, the conditional probability of no rain tomorrow (No) given the wind gust direction. Representing the Probability of rain tomorrow as $P(R)$ and the conditional probability of rain tomorrow given a wind gust direction of $D$ as $P(R/D)$, one notes that in some directions (such as NE, NNE and ESE) the $P(R/D)\geq P(R)$. This means that knowing the wind gust is coming from these directions the chances of correctly guessing $R$ - rain tomorrow is higher that correctly guessing $R$ when the wind gust direction in not revealed. Wind gust from these directions therefore increases the probability of having rain tomorrow. 
+Table \@ref(tab:winddir) relates to the town of Cobar. It provides  the conditional probability of rain tomorrow (Yes) given the wind gust direction, as well as, the conditional probability of no rain tomorrow (No) given the wind gust direction. Representing the probability of rain tomorrow as $P(R)$ and the conditional probability of rain tomorrow given a wind gust direction of $D$ as $P(R/D)$, one notes that in some directions (such as NE, NNE and ESE) the $P(R/D)\geq P(R)$. This means, that knowing the wind gust is coming from these directions, the chances of correctly guessing $R$ - rain tomorrow is higher that correctly guessing $R$ when the wind gust direction in not revealed. Wind gust from these directions therefore increases the probability of having rain tomorrow. 
 
-Similar tables were constructed for other locations and for other wind direction variables (that is **WindDir9am** and **WindDir3am**). Binary classification variables **rainDir9am**, **rainDir3pm** and **rainDirGust** were created with Wind directions where $P(R/D)\geq P(R)$ catalogued as 'Yes'. Tables \@ref(tab:raindir1), \@ref(tab:raindir2) and \@ref(tab:raindir3) show the  probabilities of rain tomorrow conditioned on **rainDir9am**, **rainDir3pm** and **rainDirGust** respectively.
+Similar tables were constructed for other locations and for other wind direction variables (that is **WindDir9am** and **WindDir3am**). Binary classification variables **rainDir9am**, **rainDir3pm** and **rainDirGust** were created with wind directions where $P(R/D)\geq P(R)$ catalogued as 'Yes'. Tables \@ref(tab:raindir1), \@ref(tab:raindir2) and \@ref(tab:raindir3) show the  probabilities of rain tomorrow conditioned on **rainDir9am**, **rainDir3pm** and **rainDirGust** respectively.
 
 ```{r winddir,echo=FALSE,warning=FALSE,message=FALSE}
 x1<-trainSet[trainSet$Location=="Cobar",]$RainTomorrow
 x2<- trainSet[trainSet$Location=="Cobar",]$WindGustDir
 x<-ctable(x1,x2, prop = 'c')[2] # the Crosstab as proportions the 2nd table in the list 
 kableExtra::kable_styling(knitr::kable(x,digits = 2,booktabs = TRUE,
-  caption = 'Conditional Probabilities No Rain Tomorrow vs. Rain Tomorrow Given WindGust Direction (Location = Cobar) ',
-  row.names = NA,col.names = NA),latex_options = "hold_position", full_width = T)
+  caption = 'Conditional Probabilities No Rain Tomorrow vs. Rain Tomorrow Given WindGust Direction (Location = Cobar)',  row.names = NA,col.names = NA),latex_options = "hold_position", full_width = T)
   
 ```
 
@@ -167,7 +165,7 @@ These four engined features (**cluster**, **rainDir9am**, **rainDir3pm** and **r
 
 ## Models and Estimation Techniques
 ###Logistic Model
-A logistic model is motivated from an assumption that the log *odds* of a (*label*) event, that is  $ln\frac{p}{1-p}$, can be modeled as a function of a vector of *features* and a vector of parameters associated with these *features*. This function is linear in its paramters. Equation \@ref(eq:logistic) represents this assumption in algebraic form.
+A logistic model is motivated from an assumption that the log *odds* of an (*label*) event, that is  $ln\frac{p}{1-p}$, can be modeled as a function of a vector of *features* and a vector of parameters associated with these *features*. This function is linear in its paramters. Equation \@ref(eq:logistic) represents this assumption in algebraic form.
 
 \begin{equation}
 \begin{gathered}
@@ -190,14 +188,14 @@ where:
 
 > $\beta$ is column-vector of parameters
   
-Staying with vector notation and solving for $p(x_i)$ in \@ref(eq:logistic) one gets:
+Staying with vector notation and solving for $p(\mathbf{x_i})$ in \@ref(eq:logistic) one gets:
 
 \begin{equation}
 p(\mathbf{x_i})=\frac{e^{\mathbf{x_i}\beta}}{1+e^{\mathbf{x_i}\beta}}=\frac{1}{1+e^{-\mathbf{x_i}\beta}}
 (\#eq:logistic1)
 \end{equation}
 
-Equation \@ref(eq:logistic1) shows that with assumption made in \@ref(eq:logistic) above $p(\mathbf{x_i})$ follows a logistic distribution. It is therefore possible to use parameter estimates from \@ref(eq:logistic) to generate probability estimates via the *link* function in \@ref(eq:logistic1).
+Equation \@ref(eq:logistic1) shows that with the assumption made in \@ref(eq:logistic) above $p(\mathbf{x_i})$ follows a logistic distribution. It is therefore possible to use parameter estimates from \@ref(eq:logistic) to generate probability estimates via the *link* function in \@ref(eq:logistic1).
 
 Using an appropriate *cut-off* ($K^*$) these probabilities can be converted to predictions of the *label* ($\hat{y}$). That is:
 
@@ -213,24 +211,24 @@ Using an appropriate *cut-off* ($K^*$) these probabilities can be converted to p
 
 An initial logistic model was developed using the 16 selected features (12 numeric and the 4 engineered dummy variables). This model was *trained* in a *10-fold nested cross validation* framework where optimal values for *hyperparameters*  were obtained and futher *feature* selction (elimination) was conducted.
 
-The *ROC* was used as the metric on which the model *trained*. The *ROC* is a curve that maps the trade-off between *Sensitivity* and *Specificity*. When optimizing using the *ROC*, the model that produces an *ROC* with the greatest *area under the curve (AUC)* is generally preferred.
+The *ROC* was used as the metric on which the model *trained*. The *ROC* is a curve that maps the trade-off between *Sensitivity* and *Specificity*. When optimizing using the *ROC*, the model that produces a *ROC* with the greatest *area under the curve (AUC)* is generally preferred.
 
 *Training* the model involved:
 
 1. Determining optimal values of *hyperparameters*. For logistic models there are two *hyperparameters*:
 
-    + $\alpha$ - *the mixing percentage* that controls how of each type of *penalties* is applied to the model.There two types of penalties for  avoiding overfitting, reducing variance of the prediction error and dealing with correlated predictors [@H2O_1]. *Least Absolute Shrinkage and Selection Operator (LASSO)* usually referred to as $l_1$ *regularization*- penalizes the sum of absolute coefficients (the $l_1$ norm) . With a high *tuning parameter value* $\lambda$ it will result significant (possibly all) coefficients being set to zero- that is *features* removed from the model [@H2O_1]. *Ridge Regression* usually referred as $l_2$ *regularization*- penalizes the sum of squares of the coefficients (the $l_2$ norm). $l-2$ *regularization* reduces coefficients simultaneously withot setting to zero, the extent of reduction is determined by the *tuning parameter* - $\lambda$.
+    + $\alpha$ - *the mixing percentage* that controls how of each type of *penalty* is applied to the model. There two types of *penalties*, they ar used for  avoiding overfitting, reducing variance of the prediction error and dealing with correlated predictors [@H2O_1]. *Least Absolute Shrinkage and Selection Operator (LASSO)* usually referred to as $l_1$ *regularization*- penalizes the sum of absolute coefficients (the $l_1$ norm) . With a high *tuning parameter value* $\lambda$ it will result significant (possibly all) coefficients being set to zero- that is *features* removed from the model [@H2O_1]. *Ridge Regression* usually referred as $l_2$ *regularization*- penalizes the sum of squares of the coefficients (the $l_2$ norm). $l_2$ *regularization* reduces coefficients simultaneously without setting to zero, the extent of reduction is determined by the *tuning parameter* - $\lambda$.
     
     + $\lambda$ -sometimes called the *tuning/regularization/shrinkage parameter* controls the strength of *penalty* to be applied to the model.  
 
 2. If appropriate further reducing in the number *features* used.
 
-The (final) *trained* model was then evaluated in the last stage of the *nested cross validation* to determine expected model performance. The expected performance of the *trained* logistic model was compared to that from the *Adaboost* classifier to determine if it merits *testing* (final evaluation using the *testSet*) and probably ultimately being placed into production.
+The (final) *trained* model was then evaluated in the last stage of the *nested cross validation* to determine expected model performance. The expected performance of the *trained* logistic model was compared to that from the *Boosted Decision Tree* classifier to determine if it merits *testing* (final evaluation using the *testSet*) and probably ultimately being placed into production.
 
 ###Boosted Decision Tree Model
-*Decision trees* splits the observations of a set of *features* recursively to make predictions about a *label* (see figure \@ref(fig:tree) for an example). Each split minimizes *entropy* - roughly speaking: the degree of mixing of ojects with different *label* values [@ricaud2017]. Splitting continues until some stop criterion is met. *Decision tree* algorithms generally produce weak classifiers - meaning they are slightly better than guessing. *Boosting* is a method of producing and combining many weak classifers to make a strong clasifier [@woodruff2017]. In *Gradient boosting* trees are created iteratively. the weak classifier (the current decision tree) trains on the pseudo-residuals of the *strong*/*base* learner (the the model resulting from aggregating past trees). The contribution of the weak learner to the (new) *strong*/*base learner* is determined by a *gradient descent* optimization process, where its contribution is that which minimizes the overall error of the *strong*/*base* learner [@moise2017]. *Stochastic gradient boosting*- the technique applied here - is a modification to *gradient boosting* where at each iteration a sample of the training data is selected randomly without replacement. This randomly selected sample is then used to fit the *base learner* and compute the model update for the current iteration'[@friedman2002]. @friedman2002 suggests that the introduction of randomization  substantially improves accuracy of *gradient boosting*.
+*Decision trees* splits the observations of a set of *features* recursively to make predictions about a *label* (see figure \@ref(fig:tree) for an example). Each split minimizes *entropy* - roughly speaking: the degree of mixing of ojects with different *label* values [@ricaud2017]. Splitting continues until some stop criterion is met. *Decision tree* algorithms generally produce weak classifiers - meaning they are slightly better than guessing. *Boosting* is a method of producing and combining many weak classifers to make a strong classifier [@woodruff2017]. In *Gradient boosting* trees are created iteratively. The weak classifier (the current decision tree) trains on the pseudo-residuals of the *strong*/*base* learner (the model resulting from aggregating past trees). The contribution of the weak learner to the (new) *strong*/*base learner* is determined by a *gradient descent* optimization process, where its contribution is, that which minimizes the overall error of the *strong*/*base* learner [@moise2017]. *Stochastic gradient boosting*- the technique applied here - is a modification to *gradient boosting* where at each iteration a sample of the training data is selected randomly without replacement. This randomly selected sample is then used to fit the *base learner* and compute the model update for the current iteration'[@friedman2002]. @friedman2002 suggests that the introduction of randomization  substantially improves accuracy of *gradient boosting*.
 
-The boosted decision tree model was *trained* in a *5-fold nested cross validation* framework where optimal values for *hyperparameters*  were obtained. As *boosting*  seems less prone to *overfitting* [@khan2016; @parkes2012; @kun2015], no attempt is made (unlike in the Logistic model) to futher reduce the number of *features* in the model. Again, the *ROC* was used as the optimizing metric in *training*. The *Stochastic Gradient Boosting* algorithm implimented via the *gbm* [@greenwell2018] and *caret* [@kuhn2018] packages, has a default value of 0.1 for the shrinkage ($\lambda$) *hyperparameter*, this was was maintained.The  minimum number of observation in each node (n.minobsinnode) was also kept at its default value of of 10 observations. The *ROC* was optimized by altering interaction depth and number of trees. 
+The boosted decision tree model was *trained* in a *5-fold nested cross validation* framework where optimal values for *hyperparameters*  were obtained. As *boosting*  seems less prone to *overfitting* [@khan2016; @parkes2012; @kun2015], no attempt was made (unlike in the Logistic model) to futher reduce the number of *features* in the model. Again, the *ROC* was used as the optimizing metric in *training*. The *Stochastic Gradient Boosting* algorithm implimented via the *gbm* [@greenwell2018] and *caret* [@kuhn2018] packages, has a default value of 0.1 for the shrinkage ($\lambda$) *hyperparameter*, this was was maintained. The  minimum number of observation in each node (n.minobsinnode) was also kept at its default value of of 10 observations. The *ROC* was optimized by altering interaction depth and number of trees. 
 
 ```{r tree,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:tree}Example of a Decision Tree",results='asis'}
 tree_example<-rpart::rpart(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
@@ -249,7 +247,7 @@ kableExtra::kable_styling(knitr::kable(bestTune_logis_full,booktabs=T,caption ='
 
 ```
 
-Figure \@ref(fig:varImpLogistic) shows the relative value of the coefficient (relative to the coefficient with the highest value) in the model (direct comparision of coefficient is possible as *features* have been *normalized*). Features with a variable importance  of less than 3 (**Temp3pm**, **Rainfall**, **Humidity9am** and **Evaporation** ), were dropped to produce a *reduced model*. The *reduced model* was again trained using *cross-validation*. The *ROC* for the *reduced model* with the best tuned *hyperparameters* was very close to that of the *full model* and the best tuned *hyperparameters* were identical to those in table \@ref(tab:logistic). On the basis of the similarity in *ROC*, the reduced model was preferred as in theory it reduces that chances of *overfitting*.  
+Figure \@ref(fig:varImpLogistic) shows the relative value of the coefficients (relative to the coefficient with the highest value) in the model (direct comparision of coefficient is possible as *features* have been *normalized*). Features with a variable importance  of less than 3 (**Temp3pm**, **Rainfall**, **Humidity9am** and **Evaporation** ), were dropped to produce a *reduced model*. The *reduced model* was again trained using *cross-validation*. The *ROC* for the *reduced model* with the best tuned *hyperparameters* was very close to that of the *full model* and the best tuned *hyperparameters* were identical to those in table \@ref(tab:logistic). On the basis of the similarity in *ROC*, the reduced model was preferred as in theory it reduces the chance of *overfitting*.  
 
 ```{r varImpLogistic,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:varImpLogistic}Variable Importance for Logistic Model"}
 plot(var_imp_logistics)
@@ -258,18 +256,18 @@ plot(var_imp_logistics)
 Using the *reduced model*  and its best tuned *hyperparameters*, *10-fold cross validation* was employed to determine what the expected performance of the best tuned model might be. Table \@ref(tab:logisticncvExpected) shows the summary statistics. The table shows that the *ROC* is expected to have an *AUC* of 0.8915 with a stardard deviation of 0.0039 and that using the default cut-off (that is, a positive label if $P(\mathbf{x})>=0.5$) *sensitivity* or *recall* is expected to be 0.8069 and *specificity* 0.8076 with standard deviations of 0.0061 and 0.0096 respectively.
 
 ```{r logisticncvExpected,echo=FALSE,warning=F,message=FALSE}
-kableExtra::kable_styling(knitr::kable(logis_cv_outer$results,booktabs=T, caption = 'Expected Performance of the Logistic Model'),latex_options = 'hold_position')
+kableExtra::kable_styling(knitr::kable(logisticPerformance_expected,booktabs=T, caption = 'Expected Performance of the Logistic Model'),latex_options = 'hold_position')
 
 ```
 
 ##Expected Performance- Boosted Decision Tree Model
-Table \@ref(tab:gbmboost) shows the best tuned *hyperparameters* from the *boosted decision tree* model estimated through *stochastic gradient boosting*. Optimization was performed on the number of trees (n.trees) and the interaction depth, which were tuned at 150 and 3 respectively. *Shrinkage* and the minimum number of observations in each was held constant at default values.
+Table \@ref(tab:gbmboost) shows the best tuned *hyperparameters* from the *boosted decision tree* model estimated through *stochastic gradient boosting*. Optimization was performed on the number of trees (n.trees) and the interaction depth, which were tuned at 150 and 3 respectively. *Shrinkage* and the minimum number of observations in each were held constant at default values.
 
 ```{r gbmboost, echo=FALSE,warning=F,message=FALSE}
 kableExtra::kable_styling(knitr::kable(bestTune_boost_full,booktabs=T,caption ='Optimal Hyperparameter Selection for Boosted Decision Tree Model Using 5-fold nested Cross Validation'),latex_options = 'hold_position')
 ```
 
-The 'best tuned' *hyperparameters* values were used in *5-fold cross validation* framework to determine what the expected performance of the model . Table \@ref(tab:BoostncvExpected) shows the summary statistics from this exercise. The *ROC* is expected to have an *AUC* of 0.8938 with a stardard deviation of 0.0044 and that using the default cut-off (that is, a positive label if $P(\mathbf{x})>=0.5$) *sensitivity* or *recall* is expected to be 0.8083 and *specificity* 0.8081 with standard deviations of 0.0068 and 0.0066 respectively. 
+The 'best tuned' *hyperparameters* values were used in *5-fold cross validation* framework to determine the expected performance of the model . Table \@ref(tab:BoostncvExpected) shows the summary statistics from this exercise. The *ROC* is expected to have an *AUC* of 0.8938 with a stardard deviation of 0.0044 and that using the default cut-off (that is, a positive label if $P(\mathbf{x})>=0.5$) *sensitivity* or *recall* is expected to be 0.8083 and *specificity* 0.8081 with standard deviations of 0.0068 and 0.0066 respectively. 
 
 ```{r BoostncvExpected,echo=FALSE,warning=F,message=FALSE}
 kableExtra::kable_styling(knitr::kable(boostExpected%>%select(-shrinkage,-n.minobsinnode),booktabs=T, caption = 'Expected Performance of the Boosted Decision Tree Model'),latex_options = 'hold_position')
@@ -277,14 +275,14 @@ kableExtra::kable_styling(knitr::kable(boostExpected%>%select(-shrinkage,-n.mino
 ```
 
 ##Comparing Models
-Figure \@ref(fig:rocPlot) the estimated (expected) *ROCs* from the *cross-validation* exercise described above.  The labelled points on the chart indicate the cut-off points(and the corresponding *specificity*, *sensitivity* vector) that will maximize *accurracy*. From the figure the expected *ROCs* are almost identical with that for the *boosted decision tree* model being marginally higher. Unlike the logisitic model, the default cut-off (that is, a positive label if $P(\mathbf{x})>=0.5$) is not the cut-off point that generates the highest *accuracy* in the *boosted decision tree* model. This notwithstanding, the default cut-off are maintained in the remainder of this assessment because it seems to produce a results with an equal balance between *recall* and *specificity* which has a sought of 'natural' appeal.
+Figure \@ref(fig:rocPlot) shows the estimated (expected) *ROCs* from the *cross-validation* exercises described above.  The labeled points on the chart indicate the cut-off points(and the corresponding *specificity*, *sensitivity* vector) that will maximize *accurracy*. From the figure the expected *ROCs* are almost identical with that for the *boosted decision tree* model being marginally higher. Unlike the logisitic model, the default cut-off (that is, a positive label if $P(\mathbf{x})>=0.5$) is not the cut-off point that generates the highest *accuracy* in the *boosted decision tree* model. This notwithstanding, the default cut-off are maintained in the remainder of this assessment because it seems to produce a results with an equal balance between *recall* and *specificity* which has a sort of 'natural' appeal.
 
 ```{r rocPlot,echo=FALSE,warning=FALSE,fig.cap="\\label{Figure:rocPlot}ROC for Logistic (Red-Dashed) and ROC for Boosted Decision Tree (Blue-Dotted) Models"}
 knitr::include_graphics('figs/rocPlot.pdf')
 
 ```
 
-Results from *nested cross-validation* - as interesting as they may be - are not the ones that ultimately matter. The 'ultimate' test is, model performance against the **testSet**, attention is now turned to this matter.
+Results from *nested cross-validation* - as interesting as they may be - are not the ones that ultimately matter. The 'ultimate' test, is a model's performance against the **testSet**, attention is now turned to this matter.
 
 Tables \@ref(tab:cmLogis) and \@ref(tab:cmBoost) present the *confusion matrix* for the Logistic and the Boosted Decision Tree models respectively. Both models performed  creditably, correctly predicting approximately 81% of both the *positive cases* (**RainTomorrow** = Yes) and *negative cases*.  
 
@@ -307,7 +305,7 @@ x%>%kable_styling(latex_options = 'hold_position')%>%add_header_above(c('','Mode
 ```
 
 #Conclusion
-Both models perform similiarly well. the *Sensitivity* and *Specificity* of both models are high - approximately 81%. Both models however have the tendancy to *over detect* positive cases, resulting in low *Positive Prediction Rate* of approximately 54%. If the net cost associated with a *false positive* is low relative the net cost of *false negative*  this may not be a significant challenge to the usefulness of the model ( eg. carrying an umbrella when it didn't rain vs. not carrying and umbrella when it did rain). The *negative prediction value* is quite high  (approx. 94%), meaning there is only about a 6% chance of a negative prediction (no rain tomorrow) being wrong.
+Both models perform similiarly well. the *Sensitivity* and *Specificity* of both models are high - approximately 81%. Both models however have the tendancy to *over detect* positive cases, resulting in low *Positive Prediction Rate* of approximately 54%. If the net cost associated with a *false positive* is low relative the net cost of *false negative* (eg. carrying an umbrella when it didn't rain vs. not carrying and umbrella when it did rain) this may not be a significant challenge to the usefulness of the model . The *negative prediction value* is quite high  (approx. 94%), meaning there is only about a 6% chance of a negative prediction (no rain tomorrow) being wrong. Model performance statistics suggest that the Boosted Decision Tree model should be preferred. However, as it only marginally out performs the Logistic model, it is conceivable to prefer the Logistic model if interpretability of results is important.
 
 #References
 

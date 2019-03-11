@@ -1,5 +1,9 @@
 #***************************************************************************************#
-# The Final Version                                                                     #
+# Allister Mounsey
+# email: allister.mounsey@gmail.com
+# 
+#Submission for 
+#
 #                                                                                       #
 #***************************************************************************************#
 
@@ -31,13 +35,6 @@ comment(weather)<-c('Date-The date of observation',
                     'RISK_MM-The amount of rain. A kind of measure of the \"risk\"',
                     'RainTomorrow-The target variable. Did it rain tomorrow?')
 
-# save.image('rda/datasets.rda')
-# Converting from png to pdf - easier for knitr to handle
-pdf('figs/aussiemap.pdf')
-aussie_map<-readPNG('figs/rain1mman.png')
-grid::grid.raster(aussie_map)
-dev.off()
-rm(aussie_map)
 
 # Required Libraries & Dataset ####
 library(tidyverse)
@@ -53,9 +50,8 @@ library(cluster)
 library(factoextra)
 library(gbm)
 library(pROC)
-#library(e1071)
-#library(MLmetrics)
-load('rda/datasets.rda')
+
+#load('rda/datasets.rda')
 
 # Required Functions ####
 labelFinder<-function(x,df=weather){
@@ -99,9 +95,9 @@ weather<-as_tibble(rownames_to_column(weather,'Index')) # to row numbers to use 
 # Returning WindDir9am and WindDir3pm to character vectors temporarily
 weather<-weather%>%mutate_at(vars(WindDir9am,WindDir3pm),funs(as.character(.)))
 
+# Fixing the WindDir issue
 WindDir9amIssue_index<-weather%>%filter(is.na(WindDir9am)&WindSpeed9am==0)%>%.$Index
 WindDir9amIssue_index<-as.numeric(WindDir9amIssue_index)
-
 WindDir3pmIssue_index<-weather%>%filter(is.na(WindDir3pm)&WindSpeed3pm==0)%>%.$Index
 WindDir3pmIssue_index<-as.numeric(WindDir3pmIssue_index)
 
@@ -139,17 +135,13 @@ unique(trainSet$Location) # Confirming that all levels of Location are captured 
 freq(trainSet$RainTomorrow) #  check how much imbalance in the values of the label  
 freq(trainSet$Location)
 
-#Doing all charts and Tables before scaling and centering trainSet and testSet
+#Doing some charts and Tables before scaling and centering trainSet and testSet
 
 trainSet$Month<-months(trainSet$Date, abbreviate = T) #  extract month to get season variation
 str(trainSet$Month) # Month is chr vector
 month_order<-unique(trainSet$Month) # this will be used to generate factor levels when month is converted to a fct (thankfully no further reordering is required)
 trainSet$Month<-factor(trainSet$Month, levels=month_order) #Month is now a Factor
 # Examining rain by locations
-
-# knitr::kable(trainSet%>%group_by(Location)%>%
-#                summarise(mean_rainfall=mean(Rainfall),oneRainDayinDays=1/mean(ifelse(RainTomorrow=='No',0,1)))%>%
-#                select(Location,mean_rainfall,oneRainDayinDays))
 
 trainSet%>%group_by(Location,Month)%>%
   summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(ifelse(RainToday=='No',0,1)))%>%
@@ -158,7 +150,7 @@ trainSet%>%group_by(Location,Month)%>%
   labs(y='Mean Number of Rain Days',size='Mean Daily\nRainfall in mm')+
   theme_bw()+theme(axis.text.x = element_text(angle=90),plot.margin = margin(2,2,2,2))
 
-# above figure would not show well in paper, so two contrasting rainfall patterns will be show see fig_seasonal
+# above figure would not show well in paper, so two contrasting rainfall patterns will be shown see fig_seasonal
 
 trainSet%>%group_by(Location,Month)%>%
   summarise(Daily_rainfall=mean(Rainfall),Number_rain_days=30.5*mean(ifelse(RainToday=='No',0,1)))%>%
@@ -168,7 +160,7 @@ trainSet%>%group_by(Location,Month)%>%
   theme_bw()+theme(axis.text.x = element_text(angle=90),legend.position = 'bottom')
 ggsave('figs/seasonal.pdf')
 
-save.image('rda/datasets_wip.rda')
+#save.image('rda/datasets_wip.rda')
 summary(trainSet)
 summary(testSet)
 
@@ -227,7 +219,7 @@ testSet[,numVars]=predict(preProcVals,testSet[,numVars])
 # Feature Engineering ####
 location<-levels(trainSet$Location)
 
-# To see conditional probabilites P(No_RainTomorrow/Dir) and P(Yes_RainTomorrow/Dir) for each local
+# To see conditional probabilites P(No_RainTomorrow/Dir) and P(Yes_RainTomorrow/Dir) for each location
 
 for(l in location){
   print(l)
@@ -259,7 +251,7 @@ rainDir9am<-list()
 for(l in location){
   x<-suppressMessages(ctable(trainSet[trainSet$Location==l,]$RainTomorrow,
                              trainSet[trainSet$Location==l,]$WindDir9am)[2]) # proportion is displayed for row (default)
-  # cell values now represents P(Dir/RainTom = Y) or P(Dir/RainTom = N), putting this way makes coding easier.
+  # cell values now represents P(Dir/RainTom = Y) or P(Dir/RainTom = N), putting it this way makes coding easier.
   x<-as.data.frame(x)
   x<-as.data.frame(t(x))
   x$dir<-row.names(x)
@@ -318,7 +310,8 @@ trainSet<-trainSet%>%mutate_at(vars(rainDir9am:rainDirGust),funs(as.factor(.))) 
 summary(trainSet)
 
 rm(x)
-save.image('rda/datasets_wip.rda')
+#save.image('rda/datasets_wip.rda')
+
 # Probability of RainTomorrow given rainDir
 ctable(trainSet$rainDir9am,trainSet$RainTomorrow,omit.headings = F)
 ctable(trainSet$rainDir3pm,trainSet$RainTomorrow,omit.headings = F)
@@ -331,7 +324,7 @@ check<-trainSet%>%group_by(Location,Month)%>%
 check<-as.data.frame(check)
 row.names(check)<-check$label
 check$label<-NULL
-check1<-check
+#check1<-check
 check<-scale(check)
 
 hc<-agnes(check)
@@ -342,8 +335,8 @@ fviz_nbclust(check,FUN=hcut,method = 'silhouette')
 # gap_stat<-clusGap(check,FUN=hcut,nstart = 25, K.max=10, B=500)
 # fviz_gap_stat(gap_stat)
 
-clust<-cutree(as.hclust(hc),k=6)
-check1$clust<-clust
+clust<-cutree(as.hclust(hc),k=6) #make six clusters
+#check1$clust<-clust
 clustmat<-trainSet%>%group_by(Location,Month)%>%
   summarise(rainDays=30.5*mean(ifelse(RainToday=='No',0,1)),sd_rainDays=sd(ifelse(RainToday=='No',0,1)))%>%
   mutate(label=paste(Location,Month, sep = '_'))%>%ungroup()%>%
@@ -435,25 +428,15 @@ logis_cv_outer<-train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+Rai
         metric='ROC',
         trControl=fitControl_logis1)
 
-# Function to append and print Mean and STD summary statistcs to resample output 
-# This is not needed (wait until you have examined adaboost model before deleting)_start(1)
-print_metrics_logistic = function(mod){
-  means = c(apply(mod$resample[,1:3], 2, mean), alpha = mod$resample[1,4], 
-            lambda = mod$resample[1,5], Resample = 'Mean')
-  stds = c(apply(mod$resample[,1:3], 2, sd), alpha = mod$resample[1,4], 
-           lambda = mod$resample[1,5], Resample = 'STD')
-  out = rbind(mod$resample, means, stds)
-  out[,1:3] = lapply(out[,1:3], function(x) round(as.numeric(x), 3))
-  out
-}
 
-print_metrics_logistic(logis_cv_outer)
-#_end(1)
 
 plot.roc(logis_cv_outer$pred$obs,logis_cv_outer$pred$Yes, print.thres=T) # Plot expected ROC with threshold and Spec, Sens 
 
 #knitr::kable(print_metrics(logis_cv_outer))
-logis_cv_outer$results
+
+logisticPerformance_expected<-logis_cv_outer$results
+row.names(logisticPerformance_expected)<-NULL
+
 rm(logis_cv_reduced)
 
 # Machine Learning - bdt (Boosted Decision Trees) ####
@@ -483,22 +466,8 @@ print(var_imp_boost)
 plot(var_imp_boost)
 
 row.names(bestTune_boost_full)<-"Optimal"
-# # Reduced model based on variable importance cutoff =3
-# 
-# set.seed(1234)
-# bost_cv_reduced <- train(RainTomorrow~cluster+rainDir3pm+rainDirGust+Rainfall+
-#                                     Sunshine+WindGustSpeed+Humidity3pm+Pressure3pm+
-#                                     Cloud3pm, 
-#                           data = trainSet,  
-#                           method = "gbm", # Stochastic Gradient boosted tree model
-#                           trControl = fitControl_boost, 
-#                           verbose = FALSE,
-#                           metric="ROC")
-# 
-# bost_cv_reduced # ROC (0.8914) very similar to ROC for the boost_cv(0.8936)  
-# rm(boost_cv) # Choose redcued model over full model
 
-#skip reduce step as boosting is 
+#skip reduce step as boosting is relative robust to overfitting 
 ## Set the hyperparameter grid to the optimal values from the inside loop
 paramGrid_boost <- expand.grid(n.trees = c(150), interaction.depth = c(3), shrinkage = c(0.1), n.minobsinnode = c(10))
 
@@ -513,16 +482,6 @@ boost_cv_outer <- train(RainTomorrow~cluster+rainDir9am+rainDir3pm+rainDirGust+R
                            verbose = FALSE,
                            metric="ROC")
 
-print_metrics_boost = function(mod){
-  means = c(apply(mod$resample[,1:3], 2, mean), n.trees = mod$resample[1,4], interaction.depth = mod$resample[1,5], 
-            shrinkage = mod$resample[1,6], n.minobsinnode = mod$resample[1,7], Resample = 'Mean')
-  stds = c(apply(mod$resample[,1:3], 2, sd), n.trees = mod$resample[1,4], interaction.depth = mod$resample[1,5], 
-           shrinkage = mod$resample[1,6], n.minobsinnode = mod$resample[1,7], Resample = 'STD')
-  out = rbind(mod$resample, means, stds)
-  out[,1:3] = lapply(out[,1:3], function(x) round(as.numeric(x), 3))
-  out
-}
-print_metrics_boost(boost_cv_outer)
 
 boostExpected<-boost_cv_outer$results
 row.names(boostExpected)<-NULL
@@ -537,11 +496,7 @@ dev.off()
 # Preparing testSet for prediction ####
 summary(testSet)
 
-#testSet1<-testSet # duplicating testset in case something goes wrong
-
 testSet$Month<-months(testSet$Date, abbreviate = T) #  extract month to get season variation
-# str(testSet$Month) # Month is chr vector
-# month_order<-unique(trainSet$Month) # this will be used to generate factor levels when month is converted to a fct (thankfully no further reordering is required)
 testSet$Month<-factor(testSet$Month, levels=month_order) #Month is now a Factor
 
 # Creating Dummy Variables indicating whether wind is blowing from a direction 
@@ -555,18 +510,7 @@ for (l in location) {
   testSet[testSet$Location==l,"rainDirGust"]<-ifelse(testSet[testSet$Location==l,]$WindGustDir%in%rainDirGust[[l]],'Yes','No')
 }
 
-# for (l in location) {
-#   trainSet[trainSet$Location==l,"rainDir9am"]<-ifelse(trainSet[trainSet$Location==l,]$WindDir9am%in%rainDir9am[[l]],'Yes','No')
-#   trainSet[trainSet$Location==l,"rainDir3pm"]<-ifelse(trainSet[trainSet$Location==l,]$WindDir3pm%in%rainDir3pm[[l]],'Yes','No')
-#   trainSet[trainSet$Location==l,"rainDirGust"]<-ifelse(trainSet[trainSet$Location==l,]$WindGustDir%in%rainDirGust[[l]],'Yes','No')
-# }
-
-# testSet$rainDir9am<-as.factor(testSet$rainDir9am)
-# testSet$rainDir3pm<-as.factor(testSet$rainDir3pm)
-# testSet$rainDirGust<-as.factor(testSet$rainDirGust)
-
 testSet<-testSet%>%mutate_at(vars(rainDir9am:rainDirGust),funs(as.factor(.))) # converting rainDir9am:rainDirGust to factor variables
-
 
 testSet<-testSet%>%mutate(locMon=paste(Location,Month, sep = '_')) # variable locMon created to facilitate joining
 testSet<-testSet%>%left_join(cluster4joining) # joining by locMon
@@ -597,29 +541,13 @@ compSummary<-cbind.data.frame(compSummary_logis,compSummary_boost)
 rmlist<-ls(pattern = '^compSummary_')
 rm(list = rmlist)
 
-# testSet$predictHybrid<-ifelse(testSet$predictLogis=='Yes'&testSet$predictAdaboost=='Yes','Yes','No')
-# testSet$predictHybrid<-factor(testSet$predictHybrid,levels = c('Yes','No'))
-# levels(testSet$predictHybrid)
-# confusionMatHybrid<-confusionMatrix(testSet$predictHybrid,testSet$RainTomorrow) # confusion matrix for Hybrid prediction
-# 
-# confusionMatHybrid
-
-save.image('rda/datasets.rda')
 #*************************************************Mar 02***********************************************
 
-# Predicting - Adaboost Model ####
 
-testSet1$prediction<-predict(bb_fit_outside_tw,newdata = testSet1)
-
-confussionMat<-caret::confusionMatrix(testSet1$prediction,testSet1$RainTomorrow)
-MLmetrics::Recall(testSet1$RainTomorrow,testSet1$prediction,positive = "Yes")
-MLmetrics::Sensitivity(testSet1$RainTomorrow,testSet1$prediction)
-MLmetrics::Specificity(testSet1$RainTomorrow,testSet1$prediction)
-MLmetrics::Precision(testSet1$RainTomorrow,testSet1$prediction)
-summary(testSet1)
-levels(testSet1$Location)
-unique(testSet1$Location)
 # save and other wrap up ####
-
+rmlist<-c("ksWrapper","clustmat","logis_cv_outer","boost_cv","boost_cv_outer","weights")
+rm(list = rmlist)
+rm("rmlist")
 save.image('rda/datasets.rda')
+
 
