@@ -1,10 +1,33 @@
 #***************************************************************************************#
 # Allister Mounsey
 # email: allister.mounsey@gmail.com
+# github: amounsey
 # 
-#Submission for 
+# Project submission for the choose Your own component
+# HarvardX: PH125.9x
+# Data Science: Capstone
+#  
+#         NOTE
+
+# The project has the following sub-directory structure:
+#   * data
+#   * figs
+#   * rda
 #
-#                                                                                       #
+# In addition to script.R , report.Rmd , you will need the'references.bib' to generate the references 
+# and citations in the final pdf version of the report.
+#
+# The data to be imported is contained in the "data" folder on my github
+# If this cannot be found, it can be downloaded from : 
+# https://www.kaggle.com/jsphyg/weather-dataset-rattle-package/version/2
+#
+# The folder 'figs' contains a preloaded file 'aussiemap.pdf' which is needed  for the report document
+# If this cannot be found, a zip file containing the png version of this file can be obatined from:
+# http://www.bom.gov.au/jsp/ncc/climate_averages/raindays/index.jsp
+# Use the commented codes from lines 574 to 579 to reconstruct the pdf file.
+#
+# ALL other figure are generated from the codes below and the 'report.Rmd' file.
+# 
 #***************************************************************************************#
 
 # Import Data ####
@@ -37,19 +60,21 @@ comment(weather)<-c('Date-The date of observation',
 
 
 # Required Libraries & Dataset ####
-library(tidyverse)
-library(summarytools)
-library(caret)
-library(gbm)
-library(repr)
-library(glmnet)
-library(ROCR)
-library(ggalt)
-library(ggrepel)
-library(cluster)
-library(factoextra)
-library(gbm)
-library(pROC)
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(summarytools)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(gbm)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(repr)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(rpart.plot)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(glmnet)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(ROCR)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(ggalt)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(ggrepel)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(cluster)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(factoextra)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(pROC)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(bookdown)) install.packages("caret", repos = "http://cran.us.r-project.org")
 
 #load('rda/datasets.rda')
 
@@ -550,4 +575,9 @@ rm(list = rmlist)
 rm("rmlist")
 save.image('rda/datasets.rda')
 
-
+# Converting from png to pdf - easier for knitr to handle
+# pdf('figs/aussiemap.pdf')
+# aussie_map<-readPNG('figs/rain1mman.png')
+# grid::grid.raster(aussie_map)
+# dev.off()
+# rm(aussie_map)

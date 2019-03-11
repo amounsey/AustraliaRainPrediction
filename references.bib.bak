@@ -1,0 +1,10 @@
+% Encoding: UTF-8
+
+@Electronic{H2O_1,
+  author = {H2O.ai},
+  title  = {Regularization},
+  note   = {Accessed: 2019-03-06},
+  url    = {http://docs.h2o.ai/h2o/latest-stable/h2o-docs/data-science/glm.html#regularization},
+}
+
+@Comment{jabref-meta: databaseType:bibtex;}
